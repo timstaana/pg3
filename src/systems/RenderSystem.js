@@ -7,6 +7,15 @@ const debug = {
   drawGroundNormal: true
 };
 
+// Helper: Convert world coordinates to p5 coordinates (negate Y, scale)
+function worldToP5(worldPos) {
+  return {
+    x: worldPos.x * WORLD_SCALE,
+    y: -worldPos.y * WORLD_SCALE, // Negate Y to flip from Y-up to Y-down
+    z: worldPos.z * WORLD_SCALE
+  };
+}
+
 function RenderSystem(world, dt) {
   background(20);
 
@@ -41,8 +50,9 @@ function RenderSystem(world, dt) {
       const pos = player.Transform.pos;
       const radius = player.Player.radius;
 
+      const p5Pos = worldToP5(pos);
       push();
-      translate(pos.x * WORLD_SCALE, pos.y * WORLD_SCALE, pos.z * WORLD_SCALE);
+      translate(p5Pos.x, p5Pos.y, p5Pos.z);
       stroke(0, 255, 100);
       sphere(radius * WORLD_SCALE);
       pop();
@@ -50,8 +60,8 @@ function RenderSystem(world, dt) {
       // Draw ground normal when grounded
       if (debug.drawGroundNormal && player.Player.grounded) {
         const normal = player.Player.groundNormal;
-        const start = vec3Mul(pos, WORLD_SCALE);
-        const end = vec3Mul(vec3Add(pos, vec3Mul(normal, 1.5)), WORLD_SCALE);
+        const start = worldToP5(pos);
+        const end = worldToP5(vec3Add(pos, vec3Mul(normal, 1.5)));
 
         stroke(255, 255, 0);
         strokeWeight(3);
@@ -77,7 +87,7 @@ function drawBoxWireframe(pos, rot, scale, size) {
   // Transform all corners
   const transformed = corners.map(c => {
     const t = transformPoint(c, pos, rot, scale);
-    return vec3Mul(t, WORLD_SCALE);
+    return worldToP5(t);
   });
 
   // Draw edges
@@ -104,9 +114,9 @@ function drawMeshWireframe(vertices, faces, pos, rot, scale) {
     const b = transformPoint(vertices[face[1]], pos, rot, scale);
     const c = transformPoint(vertices[face[2]], pos, rot, scale);
 
-    const ap = vec3Mul(a, WORLD_SCALE);
-    const bp = vec3Mul(b, WORLD_SCALE);
-    const cp = vec3Mul(c, WORLD_SCALE);
+    const ap = worldToP5(a);
+    const bp = worldToP5(b);
+    const cp = worldToP5(c);
 
     line(ap.x, ap.y, ap.z, bp.x, bp.y, bp.z);
     line(bp.x, bp.y, bp.z, cp.x, cp.y, cp.z);

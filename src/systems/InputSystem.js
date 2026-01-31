@@ -25,8 +25,8 @@ function InputSystem(world, dt) {
 
     if (keys['w'] || keys['arrowup']) moveZ -= 1;
     if (keys['s'] || keys['arrowdown']) moveZ += 1;
-    if (keys['a'] || keys['arrowleft']) moveX += 1;
-    if (keys['d'] || keys['arrowright']) moveX -= 1;
+    if (keys['a'] || keys['arrowleft']) moveX -= 1;
+    if (keys['d'] || keys['arrowright']) moveX += 1;
 
     // Normalize diagonal movement
     const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
