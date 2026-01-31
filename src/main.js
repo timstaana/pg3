@@ -114,7 +114,7 @@ function drawDebugInfo(dt) {
   // Example: Draw world-space text above a platform (using old system)
   drawWorldText(
     ['Platform 1'],
-    vec3(6, 3, -2), // Position in world coordinates
+    createVector(6, 3, -2), // Position in world coordinates
     200, 40,
     {
       bgColor: [100, 50, 150, 200],

@@ -15,12 +15,13 @@ const cameraRig = {
   pitch: 30,
   distance: 8.0,
   height: 2.0,
-  targetPos: vec3(0, 0, 0),
-  currentPos: vec3(0, 0, 0),
+  targetPos: null,
+  currentPos: null,
   smoothSpeed: 8.0,
   // Current camera transform (updated each frame)
-  camPosWorld: vec3(0, 0, 0),
-  lookAtWorld: vec3(0, 0, 0)
+  camPosWorld: null,
+  lookAtWorld: null,
+  initialized: false
 };
 
 function CameraSystem(world, dt) {
@@ -31,30 +32,39 @@ function CameraSystem(world, dt) {
   const player = players[0];
   const playerPos = player.Transform.pos;
 
+  // Initialize camera rig vectors on first run
+  if (!cameraRig.initialized) {
+    cameraRig.targetPos = createVector(0, 0, 0);
+    cameraRig.currentPos = createVector(0, 0, 0);
+    cameraRig.camPosWorld = createVector(0, 0, 0);
+    cameraRig.lookAtWorld = createVector(0, 0, 0);
+    cameraRig.initialized = true;
+  }
+
   // Update target position (smooth follow)
-  cameraRig.targetPos = vec3Copy(playerPos);
+  cameraRig.targetPos = playerPos.copy();
 
   // Lerp current position towards target
-  cameraRig.currentPos = vec3Lerp(
+  cameraRig.currentPos = p5.Vector.lerp(
     cameraRig.currentPos,
     cameraRig.targetPos,
     Math.min(1.0, cameraRig.smoothSpeed * dt)
   );
 
   // Calculate camera position from orbit parameters
-  const yawRad = degToRad(cameraRig.yaw);
-  const pitchRad = degToRad(cameraRig.pitch);
+  const yawRad = radians(cameraRig.yaw);
+  const pitchRad = radians(cameraRig.pitch);
 
   const offsetX = Math.sin(yawRad) * Math.cos(pitchRad) * cameraRig.distance;
   const offsetY = Math.sin(pitchRad) * cameraRig.distance + cameraRig.height;
   const offsetZ = Math.cos(yawRad) * Math.cos(pitchRad) * cameraRig.distance;
 
-  const camPosWorld = vec3Add(cameraRig.currentPos, vec3(offsetX, offsetY, offsetZ));
-  const lookAtWorld = vec3Add(cameraRig.currentPos, vec3(0, cameraRig.height * 0.5, 0));
+  const camPosWorld = p5.Vector.add(cameraRig.currentPos, createVector(offsetX, offsetY, offsetZ));
+  const lookAtWorld = p5.Vector.add(cameraRig.currentPos, createVector(0, cameraRig.height * 0.5, 0));
 
   // Store for other systems to access
-  cameraRig.camPosWorld = vec3Copy(camPosWorld);
-  cameraRig.lookAtWorld = vec3Copy(lookAtWorld);
+  cameraRig.camPosWorld = camPosWorld.copy();
+  cameraRig.lookAtWorld = lookAtWorld.copy();
 
   // Convert to p5 units for rendering (with Y negation)
   const camPos = worldToP5Camera(camPosWorld);

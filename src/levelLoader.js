@@ -11,9 +11,9 @@ async function loadLevel(levelPath, world, collisionWorld) {
   // ========== Process Collision Boxes ==========
   if (levelData.collision.boxes) {
     for (let box of levelData.collision.boxes) {
-      const pos = vec3(box.pos[0], box.pos[1], box.pos[2]);
-      const rot = vec3(box.rot[0], box.rot[1], box.rot[2]);
-      const scale = box.scale ? vec3(box.scale[0], box.scale[1], box.scale[2]) : vec3(1, 1, 1);
+      const pos = createVector(box.pos[0], box.pos[1], box.pos[2]);
+      const rot = createVector(box.rot[0], box.rot[1], box.rot[2]);
+      const scale = box.scale ? createVector(box.scale[0], box.scale[1], box.scale[2]) : createVector(1, 1, 1);
       const size = box.size;
 
       // Add to collision world as triangles
@@ -36,9 +36,9 @@ async function loadLevel(levelPath, world, collisionWorld) {
   // ========== Process Collision Meshes ==========
   if (levelData.collision.meshes) {
     for (let mesh of levelData.collision.meshes) {
-      const pos = vec3(mesh.pos[0], mesh.pos[1], mesh.pos[2]);
-      const rot = vec3(mesh.rot[0], mesh.rot[1], mesh.rot[2]);
-      const scale = mesh.scale ? vec3(mesh.scale[0], mesh.scale[1], mesh.scale[2]) : vec3(1, 1, 1);
+      const pos = createVector(mesh.pos[0], mesh.pos[1], mesh.pos[2]);
+      const rot = createVector(mesh.rot[0], mesh.rot[1], mesh.rot[2]);
+      const scale = mesh.scale ? createVector(mesh.scale[0], mesh.scale[1], mesh.scale[2]) : createVector(1, 1, 1);
 
       try {
         const objResponse = await fetch(mesh.src);
@@ -76,20 +76,20 @@ async function loadLevel(levelPath, world, collisionWorld) {
     Player: {
       radius: 0.4,
       grounded: false,
-      groundNormal: vec3(0, 1, 0),
+      groundNormal: createVector(0, 1, 0),
       jumpSpeed: 5.0,
       moveSpeed: 4.0
     },
     Transform: {
-      pos: vec3(spawn.pos[0], spawn.pos[1], spawn.pos[2]),
-      rot: vec3(0, spawn.yaw, 0),
-      scale: vec3(1, 1, 1)
+      pos: createVector(spawn.pos[0], spawn.pos[1], spawn.pos[2]),
+      rot: createVector(0, spawn.yaw, 0),
+      scale: createVector(1, 1, 1)
     },
     Velocity: {
-      vel: vec3(0, 0, 0)
+      vel: createVector(0, 0, 0)
     },
     Input: {
-      move: vec3(0, 0, 0),
+      move: createVector(0, 0, 0),
       jump: false
     }
   });

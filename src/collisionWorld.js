@@ -78,7 +78,7 @@ function parseOBJ(objText) {
 
     if (parts[0] === 'v') {
       // Vertex: v x y z
-      vertices.push(vec3(
+      vertices.push(createVector(
         parseFloat(parts[1]),
         parseFloat(parts[2]),
         parseFloat(parts[3])

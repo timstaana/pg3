@@ -55,7 +55,7 @@ function CollisionSystem(world, collisionWorld, dt) {
           }
         } else {
           // Wall or steep slope - remove velocity into surface
-          const velDotNormal = vec3Dot(vel, contact.normal);
+          const velDotNormal = vel.dot(contact.normal);
           if (velDotNormal < 0) {
             vel.x -= contact.normal.x * velDotNormal;
             vel.y -= contact.normal.y * velDotNormal;
@@ -67,10 +67,10 @@ function CollisionSystem(world, collisionWorld, dt) {
       // Apply grounding
       if (bestGround) {
         playerData.grounded = true;
-        playerData.groundNormal = vec3Copy(bestGround.normal);
+        playerData.groundNormal = bestGround.normal.copy();
 
         // Project velocity along ground plane (removes velocity into ground)
-        const velDotNormal = vec3Dot(vel, bestGround.normal);
+        const velDotNormal = vel.dot(bestGround.normal);
         if (velDotNormal < 0) {
           vel.x -= bestGround.normal.x * velDotNormal;
           vel.y -= bestGround.normal.y * velDotNormal;

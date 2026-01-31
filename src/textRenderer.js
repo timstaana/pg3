@@ -63,10 +63,10 @@ function drawScreenText(lines, x, y, width, height, options = {}) {
   const lookAt = cameraRig.lookAtWorld;
 
   // Calculate camera forward, right, and up vectors
-  const forward = vec3Normalize(vec3Sub(lookAt, camPos));
-  const worldUp = vec3(0, 1, 0);
-  const right = vec3Normalize(vec3Cross(forward, worldUp));
-  const up = vec3Normalize(vec3Cross(right, forward));
+  const forward = p5.Vector.sub(lookAt, camPos).normalize();
+  const worldUp = createVector(0, 1, 0);
+  const right = p5.Vector.cross(forward, worldUp).normalize();
+  const up = p5.Vector.cross(right, forward).normalize();
 
   // Screen-space offsets (pixels to world units)
   const screenScale = 0.02; // Adjust for desired UI scale
@@ -75,9 +75,9 @@ function drawScreenText(lines, x, y, width, height, options = {}) {
   const distanceFromCam = 2.0; // World units in front of camera
 
   // Calculate text position: camera + forward*distance + right*x + up*y
-  const textPosWorld = vec3Add(
-    vec3Add(camPos, vec3Mul(forward, distanceFromCam)),
-    vec3Add(vec3Mul(right, offsetX), vec3Mul(up, -offsetY))
+  const textPosWorld = p5.Vector.add(
+    p5.Vector.add(camPos, p5.Vector.mult(forward, distanceFromCam)),
+    p5.Vector.add(p5.Vector.mult(right, offsetX), p5.Vector.mult(up, -offsetY))
   );
 
   // Convert to p5 coordinates
