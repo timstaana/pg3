@@ -74,7 +74,7 @@ async function setup() {
     CanvasOverlay: {
       x: 10,
       y: 10,
-      text: ['FPS: --', 'Pos: --', 'Grounded: --', 'Triangles: --'],
+      text: ['FPS: --', 'Pos: --', 'Grounded: --', 'Slope: --', 'Triangles: --'],
       fontSize: 14,
       color: 'white',
       bgColor: 'rgba(0, 0, 0, 0.7)',
@@ -119,12 +119,25 @@ const updateDebugInfo = (dt) => {
   if (!player || !collisionWorld || !debugTextEntity) return;
 
   const fps = round(1 / dt);
-  const { Transform: { pos }, Player: { grounded } } = player;
+  const { Transform: { pos }, Player: playerData } = player;
+
+  // Calculate slope angle from current normal
+  let slopeAngle = 0;
+  let slopeType = '--';
+
+  if (playerData.grounded && playerData.groundNormal) {
+    slopeAngle = Math.acos(playerData.groundNormal.y) * 180 / Math.PI;
+    slopeType = 'Ground';
+  } else if (playerData.steepSlope) {
+    slopeAngle = Math.acos(playerData.steepSlope.y) * 180 / Math.PI;
+    slopeType = 'Steep';
+  }
 
   debugTextEntity.CanvasOverlay.text = [
     `FPS: ${fps}`,
     `Pos: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)})`,
-    `Grounded: ${grounded}`,
+    `Grounded: ${playerData.grounded}`,
+    `Slope: ${slopeAngle.toFixed(1)}° (${slopeType})`,
     `Triangles: ${collisionWorld.tris.length}`
   ];
 };

@@ -46,7 +46,16 @@ const CollisionSystem = (world, collisionWorld, dt) => {
         }
 
         if (contact.normal.y >= MIN_GROUND_NY) {
-          if (contact.point.y > bestGroundY) {
+          // Check if contact is on the triangle surface, not on an edge/vertex
+          // by verifying the contact point is not too close to triangle edges
+          const EDGE_THRESHOLD = 0.05;
+          const toA = p5.Vector.dist(contact.point, tri.a);
+          const toB = p5.Vector.dist(contact.point, tri.b);
+          const toC = p5.Vector.dist(contact.point, tri.c);
+
+          const isNearVertex = toA < EDGE_THRESHOLD || toB < EDGE_THRESHOLD || toC < EDGE_THRESHOLD;
+
+          if (!isNearVertex && contact.point.y > bestGroundY) {
             bestGround = contact;
             bestGroundY = contact.point.y;
           }
@@ -63,13 +72,25 @@ const CollisionSystem = (world, collisionWorld, dt) => {
       if (bestGround) {
         playerData.grounded = true;
         playerData.groundNormal = bestGround.normal.copy();
+
+        // Smooth the ground normal to prevent rapid changes
+        const NORMAL_SMOOTH = 0.3;
+        if (!playerData.smoothedGroundNormal) {
+          playerData.smoothedGroundNormal = bestGround.normal.copy();
+        } else {
+          playerData.smoothedGroundNormal.lerp(bestGround.normal, NORMAL_SMOOTH);
+          playerData.smoothedGroundNormal.normalize();
+        }
+
         playerData.steepSlope = null;
         projectVelocityOffSurface(vel, bestGround.normal);
       } else if (steepestSlope) {
         // On a steep slope - not grounded but should slide
         playerData.steepSlope = steepestSlope.normal.copy();
+        playerData.smoothedGroundNormal = null;
       } else {
         playerData.steepSlope = null;
+        playerData.smoothedGroundNormal = null;
       }
 
       if (!hadCollision) break;

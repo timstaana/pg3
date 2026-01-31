@@ -16,18 +16,21 @@ const PlayerMotionSystem = (world, dt) => {
 
     // Calculate slope-based speed adjustment
     let slopeMultiplier = 1.0;
-    if (playerData.grounded && SLOPE_SPEED_FACTOR > 0 && input.forward !== 0) {
+    if (playerData.grounded && playerData.smoothedGroundNormal && SLOPE_SPEED_FACTOR > 0 && input.forward !== 0) {
+      // Use smoothed normal for stable slope detection
+      const normal = playerData.smoothedGroundNormal;
+
       // Calculate steepness using absolute Y to handle any normal orientation
-      const absY = Math.abs(playerData.groundNormal.y);
+      const absY = Math.abs(normal.y);
       const steepness = 1.0 - absY;
       const maxSteepness = 1.0 - MIN_GROUND_NY;
       const normalizedSteepness = constrain(steepness / maxSteepness, 0, 1);
 
       // Get horizontal component of ground normal to determine direction
       const groundNormalHorizontal = createVector(
-        playerData.groundNormal.x,
+        normal.x,
         0,
-        playerData.groundNormal.z
+        normal.z
       );
 
       const horizontalMag = groundNormalHorizontal.mag();

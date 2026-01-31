@@ -98,7 +98,7 @@ const renderPlayer = (player) => {
   // Sprite originates from bottom of collision sphere (feet at ground)
   const halfWidth = 0.5;
   const playerHeight = 1.5;
-  const spriteBottom = -playerData.radius - .3;
+  const spriteBottom = -playerData.radius;
 
   noStroke();
   texture(useFrontTexture ? PLAYER_FRONT_TEX : PLAYER_BACK_TEX);
@@ -125,6 +125,28 @@ const renderLabel = (label) => {
   drawWorldText(label.text, label.pos, label.width, label.height, options);
 };
 
+const renderNormalDebug = (player) => {
+  const { Transform: { pos }, Player: playerData } = player;
+
+  if (playerData.grounded && playerData.groundNormal) {
+    // Draw ground normal in green
+    stroke(0, 255, 0);
+    strokeWeight(1);
+    const normalLen = 2.0;
+    const endPos = p5.Vector.add(pos, p5.Vector.mult(playerData.groundNormal, normalLen));
+    line(pos.x, pos.y, pos.z, endPos.x, endPos.y, endPos.z);
+  }
+
+  if (playerData.steepSlope) {
+    // Draw steep slope normal in red
+    stroke(255, 0, 0);
+    strokeWeight(1);
+    const normalLen = 2.0;
+    const endPos = p5.Vector.add(pos, p5.Vector.mult(playerData.steepSlope, normalLen));
+    line(pos.x, pos.y, pos.z, endPos.x, endPos.y, endPos.z);
+  }
+};
+
 const RenderSystem = (world, dt) => {
   background(20);
 
@@ -143,6 +165,9 @@ const RenderSystem = (world, dt) => {
   });
 
   queryEntities(world, 'Player', 'Transform').forEach(renderPlayer);
+
+  // Debug: Draw ground normal
+  queryEntities(world, 'Player', 'Transform').forEach(renderNormalDebug);
 
   queryEntities(world, 'Label').forEach(entity => renderLabel(entity.Label));
 

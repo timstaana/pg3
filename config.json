@@ -3,15 +3,15 @@
     "scale": 50
   },
   "physics": {
-    "gravity": 30.0,
+    "gravity": 30,
     "maxSlopeDeg": 45.0,
-    "groundingTolerance": 0.5,
+    "groundingTolerance": 0.05,
     "jumpHeight": 1.5,
-    "slopeSpeedFactor": 1
+    "slopeSpeedFactor": 0.5
   },
   "player": {
-    "moveSpeed": 6.0,
-    "turnSpeed": 100.0
+    "moveSpeed": 8.0,
+    "turnSpeed": 80.0
   },
   "collision": {
     "queryMargin": 0.5,

@@ -13,9 +13,16 @@ const AnimationSystem = (world, dt) => {
 
     // Set animation frames based on state
     if (isMoving) {
-      // Scale animation speed based on actual movement speed
-      const speedRatio = horizontalSpeed / playerData.moveSpeed;
-      const scaledFPS = anim.framesPerSecond * Math.max(speedRatio, 0.5); // Min 50% speed
+      // Use full speed when turning, scaled speed when moving forward
+      let scaledFPS;
+      if (isTurning && horizontalSpeed < 0.1) {
+        // Turning in place - use full speed
+        scaledFPS = anim.framesPerSecond;
+      } else {
+        // Moving - scale animation speed based on actual movement speed
+        const speedRatio = horizontalSpeed / playerData.moveSpeed;
+        scaledFPS = anim.framesPerSecond * Math.max(speedRatio, 0.5); // Min 50% speed
+      }
 
       // Walking animation
       anim.frameTime += dt;

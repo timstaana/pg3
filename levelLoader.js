@@ -148,7 +148,7 @@ const createPlayer = (spawn, world) => {
     Animation: {
       currentFrame: 0,
       frameTime: 0,
-      framesPerSecond: 12,
+      framesPerSecond: 6,
       totalFrames: 3,
       idleFrame: 0,
       walkFrames: [1, 2]
