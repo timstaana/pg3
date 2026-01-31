@@ -62,9 +62,9 @@ function drawScreenText(lines, x, y, width, height, options = {}) {
   const camPos = cameraRig.camPosWorld;
   const lookAt = cameraRig.lookAtWorld;
 
-  // Calculate camera forward, right, and up vectors
+  // Calculate camera forward, right, and up vectors (Y-up world space)
   const forward = p5.Vector.sub(lookAt, camPos).normalize();
-  const worldUp = createVector(0, 1, 0);
+  const worldUp = createVector(0, 1, 0); // Y-up
   const right = p5.Vector.cross(forward, worldUp).normalize();
   const up = p5.Vector.cross(right, forward).normalize();
 
@@ -74,16 +74,16 @@ function drawScreenText(lines, x, y, width, height, options = {}) {
   const offsetY = (y - windowHeight / 2) * screenScale;
   const distanceFromCam = 2.0; // World units in front of camera
 
-  // Calculate text position: camera + forward*distance + right*x + up*y
+  // Calculate text position in world space: camera + forward*distance + right*x + up*y
   const textPosWorld = p5.Vector.add(
     p5.Vector.add(camPos, p5.Vector.mult(forward, distanceFromCam)),
     p5.Vector.add(p5.Vector.mult(right, offsetX), p5.Vector.mult(up, -offsetY))
   );
 
-  // Convert to p5 coordinates
+  // Convert to p5 coordinates (flip Y, apply scale)
   const textPosP5 = {
     x: textPosWorld.x * WORLD_SCALE,
-    y: -textPosWorld.y * WORLD_SCALE,
+    y: -textPosWorld.y * WORLD_SCALE, // Y-flip for p5
     z: textPosWorld.z * WORLD_SCALE
   };
 
@@ -106,10 +106,10 @@ function drawScreenText(lines, x, y, width, height, options = {}) {
 function drawWorldText(lines, worldPos, width, height, options = {}) {
   const g = renderTextToGraphics(lines, width, height, options);
 
-  // Convert world position to p5 coordinates
+  // Convert world position (Y-up) to p5 coordinates (Y-down)
   const p5Pos = {
     x: worldPos.x * WORLD_SCALE,
-    y: -worldPos.y * WORLD_SCALE,
+    y: -worldPos.y * WORLD_SCALE, // Y-flip for p5
     z: worldPos.z * WORLD_SCALE
   };
 
@@ -131,7 +131,7 @@ function drawWorldText(lines, worldPos, width, height, options = {}) {
 
 // Clean up cached graphics buffers (call on window resize)
 function clearTextGraphicsCache() {
-  for (let [key, g] of textGraphicsCache) {
+  for (let g of textGraphicsCache.values()) {
     g.remove();
   }
   textGraphicsCache.clear();

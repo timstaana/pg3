@@ -1,20 +1,16 @@
-// RenderSystem.js - Simple box rendering
-
-// Helper: Convert world coordinates to p5 coordinates (negate Y, scale)
-function worldToP5(worldPos) {
-  return {
-    x: worldPos.x * WORLD_SCALE,
-    y: -worldPos.y * WORLD_SCALE, // Negate Y to flip from Y-up to Y-down
-    z: worldPos.z * WORLD_SCALE
-  };
-}
+// RenderSystem.js - Rendering with Y-up coordinate system
 
 function RenderSystem(world, dt) {
   background(20);
 
-  // Lighting
+  // Apply global coordinate transform: Y-up world to Y-down p5
+  // This flips the Y axis for rendering
+  push();
+  scale(WORLD_SCALE, -WORLD_SCALE, WORLD_SCALE);
+
+  // Lighting (in flipped coordinate system)
   ambientLight(100);
-  directionalLight(200, 200, 200, 0, 1, 0); // Straight down from above
+  directionalLight(200, 200, 200, 0, 1, 0); // Pointing up in Y-down, becomes down after Y-flip
 
   // Render box colliders
   const colliders = queryEntities(world, 'Collider');
@@ -22,23 +18,25 @@ function RenderSystem(world, dt) {
     const col = entity.Collider;
 
     if (col.type === 'box') {
-      const p5Pos = worldToP5(col.pos);
-
       push();
-      translate(p5Pos.x, p5Pos.y, p5Pos.z);
 
-      // Apply rotation in YXZ order (same as eulerToMatrix)
-      // Negate X and Z rotations for Y-down coordinate system
-      rotateY(col.rot.y);
-      rotateX(-col.rot.x);
-      rotateZ(-col.rot.z);
+      // Translate to position (world coordinates)
+      translate(col.pos.x, col.pos.y, col.pos.z);
 
-      // Apply scale (including WORLD_SCALE conversion)
-      scale(col.scale.x * WORLD_SCALE, col.scale.y * WORLD_SCALE, col.scale.z * WORLD_SCALE);
+      // Rotate using world space rotations
+      // Negate X and Z because Y-flip reverses handedness
+      rotateY(radians(col.rot.y));
+      rotateX(radians(-col.rot.x));
+      rotateZ(radians(-col.rot.z));
 
+      // Scale
+      scale(col.scale.x, col.scale.y, col.scale.z);
+
+      // Draw box
       fill(100, 200, 255);
       noStroke();
       box(col.size[0], col.size[1], col.size[2]);
+
       pop();
     }
   }
@@ -49,12 +47,13 @@ function RenderSystem(world, dt) {
     const pos = player.Transform.pos;
     const radius = player.Player.radius;
 
-    const p5Pos = worldToP5(pos);
     push();
-    translate(p5Pos.x, p5Pos.y, p5Pos.z);
+    translate(pos.x, pos.y, pos.z);
     fill(0, 255, 100);
     noStroke();
-    sphere(radius * WORLD_SCALE);
+    sphere(radius);
     pop();
   }
+
+  pop(); // End global coordinate transform
 }

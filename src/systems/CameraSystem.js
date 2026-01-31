@@ -1,13 +1,4 @@
-// CameraSystem.js - Mario 64 style orbit camera
-
-// Helper: Convert world coordinates to p5 coordinates (negate Y, scale)
-function worldToP5Camera(worldPos) {
-  return {
-    x: worldPos.x * WORLD_SCALE,
-    y: -worldPos.y * WORLD_SCALE, // Negate Y to flip from Y-up to Y-down
-    z: worldPos.z * WORLD_SCALE
-  };
-}
+// CameraSystem.js - Mario 64 style orbit camera with Y-up coordinates
 
 // Camera rig state
 const cameraRig = {
@@ -51,7 +42,7 @@ function CameraSystem(world, dt) {
     Math.min(1.0, cameraRig.smoothSpeed * dt)
   );
 
-  // Calculate camera position from orbit parameters
+  // Calculate camera position from orbit parameters (Y-up coordinates)
   const yawRad = radians(cameraRig.yaw);
   const pitchRad = radians(cameraRig.pitch);
 
@@ -66,14 +57,19 @@ function CameraSystem(world, dt) {
   cameraRig.camPosWorld = camPosWorld.copy();
   cameraRig.lookAtWorld = lookAtWorld.copy();
 
-  // Convert to p5 units for rendering (with Y negation)
-  const camPos = worldToP5Camera(camPosWorld);
-  const lookAt = worldToP5Camera(lookAtWorld);
+  // Set p5 camera with Y-flip to convert from Y-up to Y-down
+  const camX = camPosWorld.x * WORLD_SCALE;
+  const camY = -camPosWorld.y * WORLD_SCALE; // Flip Y
+  const camZ = camPosWorld.z * WORLD_SCALE;
 
-  // Set p5 camera (up vector negated to match flipped Y)
+  const lookX = lookAtWorld.x * WORLD_SCALE;
+  const lookY = -lookAtWorld.y * WORLD_SCALE; // Flip Y
+  const lookZ = lookAtWorld.z * WORLD_SCALE;
+
+  // Set p5 camera (up vector is positive Y in p5's Y-down space)
   camera(
-    camPos.x, camPos.y, camPos.z,
-    lookAt.x, lookAt.y, lookAt.z,
+    camX, camY, camZ,
+    lookX, lookY, lookZ,
     0, 1, 0
   );
 }
