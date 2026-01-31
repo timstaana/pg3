@@ -61,7 +61,7 @@
         "id": "terrain",
         "src": "assets/terrain.obj",
         "pos": [-18, 3, 0],
-        "rot": [-15, 3, 15],
+        "rot": [-30, 3, 15],
         "scale": 20
       }
     ]

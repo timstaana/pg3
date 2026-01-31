@@ -4,9 +4,10 @@
   },
   "physics": {
     "gravity": 30.0,
-    "maxSlopeDeg": 45.0,
+    "maxSlopeDeg": 60.0,
     "groundingTolerance": 0.01,
-    "jumpHeight": 1.5
+    "jumpHeight": 1.5,
+    "slopeSpeedFactor": 1
   },
   "collision": {
     "queryMargin": 0.5,

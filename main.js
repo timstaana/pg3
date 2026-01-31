@@ -17,6 +17,7 @@ let MIN_GROUND_NY;
 let GROUNDING_TOLERANCE;
 let COLLISION_CONFIG;
 let JUMP_HEIGHT;
+let SLOPE_SPEED_FACTOR;
 
 // Player textures
 let PLAYER_FRONT_TEX;
@@ -38,6 +39,7 @@ async function setup() {
   GROUNDING_TOLERANCE = config.physics.groundingTolerance;
   COLLISION_CONFIG = config.collision;
   JUMP_HEIGHT = config.physics.jumpHeight;
+  SLOPE_SPEED_FACTOR = config.physics.slopeSpeedFactor;
 
   world = createWorld();
   collisionWorld = createCollisionWorld();

@@ -1,21 +1,25 @@
 // AnimationSystem.js - Sprite animation for player
 
 const AnimationSystem = (world, dt) => {
-  const entities = queryEntities(world, 'Animation', 'Velocity', 'Input');
+  const entities = queryEntities(world, 'Animation', 'Velocity', 'Input', 'Player');
 
   entities.forEach(entity => {
-    const { Animation: anim, Velocity: { vel }, Input: input } = entity;
+    const { Animation: anim, Velocity: { vel }, Input: input, Player: playerData } = entity;
 
-    // Determine if moving or turning
-    const speed = vel.mag();
+    // Calculate horizontal speed (ignoring vertical component)
+    const horizontalSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
     const isTurning = Math.abs(input.turn) > 0.01;
-    const isMoving = speed > 0.1 || isTurning;
+    const isMoving = horizontalSpeed > 0.1 || isTurning;
 
     // Set animation frames based on state
     if (isMoving) {
+      // Scale animation speed based on actual movement speed
+      const speedRatio = horizontalSpeed / playerData.moveSpeed;
+      const scaledFPS = anim.framesPerSecond * Math.max(speedRatio, 0.5); // Min 50% speed
+
       // Walking animation
       anim.frameTime += dt;
-      const frameDuration = 1 / anim.framesPerSecond;
+      const frameDuration = 1 / scaledFPS;
 
       if (anim.frameTime >= frameDuration) {
         anim.frameTime -= frameDuration;
