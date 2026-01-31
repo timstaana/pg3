@@ -55,6 +55,23 @@
   },
   "visuals": {
     "models": [],
-    "billboards": []
+    "billboards": [
+      {
+        "text": ["Platform 1"],
+        "pos": [6, 3, -2],
+        "width": 200,
+        "height": 40,
+        "bgColor": [100, 50, 150, 200],
+        "billboard": true
+      },
+      {
+        "text": ["Platform 2"],
+        "pos": [6, 5, 4],
+        "width": 200,
+        "height": 40,
+        "bgColor": [100, 50, 150, 200],
+        "billboard": true
+      }
+    ]
   }
 }
