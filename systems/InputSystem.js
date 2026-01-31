@@ -18,21 +18,16 @@ const InputSystem = (world, dt) => {
   players.forEach(player => {
     const { Input: input } = player;
 
-    const moveX =
+    // Tank controls: forward/back and turn left/right
+    const forward =
+      (keys['w'] || keys['arrowup'] ? 1 : 0) -
+      (keys['s'] || keys['arrowdown'] ? 1 : 0);
+    const turn =
       (keys['d'] || keys['arrowright'] ? 1 : 0) -
       (keys['a'] || keys['arrowleft'] ? 1 : 0);
-    const moveZ =
-      (keys['s'] || keys['arrowdown'] ? 1 : 0) -
-      (keys['w'] || keys['arrowup'] ? 1 : 0);
 
-    const moveVec = createVector(moveX, 0, moveZ);
-    const len = moveVec.mag();
-
-    if (len > 0.01) {
-      moveVec.normalize();
-    }
-
-    input.move.set(moveVec);
+    input.forward = forward;
+    input.turn = turn;
     input.jump = keys[' '] || false;
   });
 };

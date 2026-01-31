@@ -3,9 +3,10 @@
     "scale": 50
   },
   "physics": {
-    "gravity": 20.0,
+    "gravity": 30.0,
     "maxSlopeDeg": 45.0,
-    "groundingTolerance": 0.01
+    "groundingTolerance": 0.01,
+    "jumpHeight": 1.5
   },
   "collision": {
     "queryMargin": 0.5,

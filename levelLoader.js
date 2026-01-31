@@ -68,14 +68,18 @@ const processMeshCollider = async (mesh, world, collisionWorld) => {
 
 // ========== Player Creation ==========
 
-const createPlayer = (spawn, world) =>
-  createEntity(world, {
+const createPlayer = (spawn, world) => {
+  // Calculate jump speed from jump height: v = sqrt(2 * g * h)
+  const jumpSpeed = Math.sqrt(2 * GRAVITY * JUMP_HEIGHT);
+
+  return createEntity(world, {
     Player: {
       radius: 0.4,
       grounded: false,
       groundNormal: createVector(0, 1, 0),
-      jumpSpeed: 5.0,
-      moveSpeed: 4.0
+      jumpSpeed,
+      moveSpeed: 4.0,
+      turnSpeed: 180.0
     },
     Transform: {
       pos: vecFromArray(spawn.pos),
@@ -86,10 +90,20 @@ const createPlayer = (spawn, world) =>
       vel: createVector(0, 0, 0)
     },
     Input: {
-      move: createVector(0, 0, 0),
+      forward: 0,
+      turn: 0,
       jump: false
+    },
+    Animation: {
+      currentFrame: 0,
+      frameTime: 0,
+      framesPerSecond: 12,
+      totalFrames: 3,
+      idleFrame: 0,
+      walkFrames: [1, 2]
     }
   });
+};
 
 // ========== Main Loader ==========
 

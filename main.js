@@ -16,6 +16,11 @@ let MAX_SLOPE_DEG;
 let MIN_GROUND_NY;
 let GROUNDING_TOLERANCE;
 let COLLISION_CONFIG;
+let JUMP_HEIGHT;
+
+// Player textures
+let PLAYER_FRONT_TEX;
+let PLAYER_BACK_TEX;
 
 // ========== Initialization ==========
 
@@ -32,11 +37,20 @@ async function setup() {
   MIN_GROUND_NY = Math.cos(MAX_SLOPE_DEG * Math.PI / 180);
   GROUNDING_TOLERANCE = config.physics.groundingTolerance;
   COLLISION_CONFIG = config.collision;
+  JUMP_HEIGHT = config.physics.jumpHeight;
 
   world = createWorld();
   collisionWorld = createCollisionWorld();
 
   setupInputListeners();
+
+  // Load player textures
+  PLAYER_FRONT_TEX = await new Promise((resolve, reject) => {
+    loadImage('assets/player_front.png', resolve, reject);
+  });
+  PLAYER_BACK_TEX = await new Promise((resolve, reject) => {
+    loadImage('assets/player_back.png', resolve, reject);
+  });
 
   const levelPath = `levels/${config.defaultLevel}/${config.defaultLevel}.json`;
   const result = await loadLevel(levelPath, world, collisionWorld);
@@ -71,6 +85,7 @@ const runSystems = (dt) => {
   GravitySystem(world, dt);
   IntegrateSystem(world, dt);
   CollisionSystem(world, collisionWorld, dt);
+  AnimationSystem(world, dt);
   CameraSystem(world, dt);
   RenderSystem(world, dt);
   CanvasOverlaySystem(world, dt);

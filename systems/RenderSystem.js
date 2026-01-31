@@ -66,12 +66,50 @@ const renderMeshCollider = (col) => {
 };
 
 const renderPlayer = (player) => {
-  const { Transform: { pos }, Player: { radius } } = player;
+  const { Transform: { pos, rot }, Animation: anim } = player;
+
+  // Calculate camera direction relative to player
+  const camPos = cameraRig.camPosWorld;
+  const toCamera = p5.Vector.sub(camPos, pos);
+  toCamera.y = 0; // Only consider horizontal angle
+  toCamera.normalize();
+
+  // Player forward direction based on yaw
+  const playerYawRad = radians(-rot.y);
+  const playerForward = createVector(sin(playerYawRad), 0, cos(playerYawRad));
+
+  // Determine if camera is in front or behind player
+  const dot = toCamera.dot(playerForward);
+  const useFrontTexture = dot > 0;
+
+  // Calculate UV coordinates for current frame
+  // 3 frames arranged horizontally
+  const frameWidth = 1 / anim.totalFrames;
+  const uMin = anim.currentFrame * frameWidth;
+  const uMax = (anim.currentFrame + 1) * frameWidth;
+
   push();
   translate(pos.x, pos.y, pos.z);
-  fill(0, 255, 100);
+
+  // Rotate sprite to face player's direction
+  rotateY(radians(-rot.y));
+
+  // Player size: 1 width x 1.5 height
+  // Sprite originates from bottom (feet at player position)
+  const halfWidth = 0.5;
+  const playerHeight = 1.5;
+
   noStroke();
-  sphere(radius);
+  texture(useFrontTexture ? PLAYER_FRONT_TEX : PLAYER_BACK_TEX);
+  textureMode(NORMAL);
+
+  beginShape();
+  vertex(-halfWidth, 0, 0, uMin, 1);
+  vertex(halfWidth, 0, 0, uMax, 1);
+  vertex(halfWidth, playerHeight, 0, uMax, 0);
+  vertex(-halfWidth, playerHeight, 0, uMin, 0);
+  endShape(CLOSE);
+
   pop();
 };
 
