@@ -1,59 +1,45 @@
-// RenderSystem.js - Rendering with Y-up coordinate system
+// RenderSystem.js - 3D wireframe rendering
+// Y-up world space converted to p5.js Y-down space
 
-function RenderSystem(world, dt) {
+const renderBoxCollider = (col) => {
+  push();
+  translate(col.pos.x, col.pos.y, col.pos.z);
+  rotateY(radians(col.rot.y));
+  rotateX(radians(-col.rot.x));
+  rotateZ(radians(-col.rot.z));
+  scale(col.scale.x, col.scale.y, col.scale.z);
+  fill(100, 200, 255);
+  noStroke();
+  box(col.size[0], col.size[1], col.size[2]);
+  pop();
+};
+
+const renderPlayer = (player) => {
+  const { Transform: { pos }, Player: { radius } } = player;
+  push();
+  translate(pos.x, pos.y, pos.z);
+  fill(0, 255, 100);
+  noStroke();
+  sphere(radius);
+  pop();
+};
+
+const RenderSystem = (world, dt) => {
   background(20);
 
-  // Apply global coordinate transform: Y-up world to Y-down p5
-  // This flips the Y axis for rendering
   push();
   scale(WORLD_SCALE, -WORLD_SCALE, WORLD_SCALE);
 
-  // Lighting (in flipped coordinate system)
   ambientLight(100);
-  directionalLight(200, 200, 200, 0, 1, 0); // Pointing up in Y-down, becomes down after Y-flip
+  directionalLight(200, 200, 200, 0, 1, 0);
 
-  // Render box colliders
-  const colliders = queryEntities(world, 'Collider');
-  for (let entity of colliders) {
-    const col = entity.Collider;
-
-    if (col.type === 'box') {
-      push();
-
-      // Translate to position (world coordinates)
-      translate(col.pos.x, col.pos.y, col.pos.z);
-
-      // Rotate using world space rotations
-      // Negate X and Z because Y-flip reverses handedness
-      rotateY(radians(col.rot.y));
-      rotateX(radians(-col.rot.x));
-      rotateZ(radians(-col.rot.z));
-
-      // Scale
-      scale(col.scale.x, col.scale.y, col.scale.z);
-
-      // Draw box
-      fill(100, 200, 255);
-      noStroke();
-      box(col.size[0], col.size[1], col.size[2]);
-
-      pop();
+  queryEntities(world, 'Collider').forEach(entity => {
+    if (entity.Collider.type === 'box') {
+      renderBoxCollider(entity.Collider);
     }
-  }
+  });
 
-  // Render player
-  const players = queryEntities(world, 'Player', 'Transform');
-  for (let player of players) {
-    const pos = player.Transform.pos;
-    const radius = player.Player.radius;
+  queryEntities(world, 'Player', 'Transform').forEach(renderPlayer);
 
-    push();
-    translate(pos.x, pos.y, pos.z);
-    fill(0, 255, 100);
-    noStroke();
-    sphere(radius);
-    pop();
-  }
-
-  pop(); // End global coordinate transform
-}
+  pop();
+};

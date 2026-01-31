@@ -1,80 +1,75 @@
-// CanvasOverlaySystem.js - Simple 2D canvas overlay for HUD elements
+// CanvasOverlaySystem.js - 2D HUD overlay
+// DOM canvas for debug info and UI elements
 
 let overlayCanvas = null;
 let overlayCtx = null;
 
-// Initialize the overlay canvas (call once in setup)
-function initCanvasOverlay() {
-  // Create canvas element
+const initCanvasOverlay = () => {
   overlayCanvas = document.createElement('canvas');
   overlayCanvas.id = 'overlay-canvas';
   overlayCanvas.width = windowWidth;
   overlayCanvas.height = windowHeight;
 
-  // Style it to overlay the main canvas
-  overlayCanvas.style.position = 'absolute';
-  overlayCanvas.style.top = '0';
-  overlayCanvas.style.left = '0';
-  overlayCanvas.style.pointerEvents = 'none'; // Don't block mouse events
-  overlayCanvas.style.zIndex = '10';
+  Object.assign(overlayCanvas.style, {
+    position: 'absolute',
+    top: '0',
+    left: '0',
+    pointerEvents: 'none',
+    zIndex: '10'
+  });
 
-  // Add to document
   document.body.appendChild(overlayCanvas);
-
-  // Get 2D context
   overlayCtx = overlayCanvas.getContext('2d');
 
-  console.log('Canvas overlay initialized:', overlayCanvas.width, 'x', overlayCanvas.height);
-}
+  console.log(`Canvas overlay: ${overlayCanvas.width}x${overlayCanvas.height}`);
+};
 
-// Update overlay canvas size on window resize
-function resizeCanvasOverlay() {
+const resizeCanvasOverlay = () => {
   if (overlayCanvas) {
     overlayCanvas.width = windowWidth;
     overlayCanvas.height = windowHeight;
   }
-}
+};
 
-// System to render overlay elements
-function CanvasOverlaySystem(world, dt) {
+const renderOverlayText = (overlay) => {
+  const {
+    x = 0,
+    y = 0,
+    text,
+    fontSize = 12,
+    color = 'white',
+    bgColor = 'rgba(0, 0, 0, 0.7)',
+    padding = 0,
+  } = overlay;
+
+  const lines = Array.isArray(text) ? text : [text];
+  const lineHeight = fontSize * 1.4;
+
+  overlayCtx.font = `${fontSize}px system-ui`;
+  overlayCtx.textBaseline = 'top';
+
+  const maxWidth = max(...lines.map(line => overlayCtx.measureText(line).width));
+
+  overlayCtx.fillStyle = bgColor;
+  overlayCtx.fillRect(
+    x,
+    y,
+    maxWidth + padding * 2,
+    lines.length * lineHeight + padding * 2 - 6
+  );
+
+  overlayCtx.fillStyle = color;
+  lines.forEach((line, i) => {
+    overlayCtx.fillText(line, x + padding, y + padding + i * lineHeight);
+  });
+};
+
+const CanvasOverlaySystem = (world, dt) => {
   if (!overlayCtx) return;
 
-  // Clear the overlay
   overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-  // Query entities with CanvasOverlay component
-  const entities = queryEntities(world, 'CanvasOverlay');
-
-  for (let entity of entities) {
-    const overlay = entity.CanvasOverlay;
-
-    // Draw text at screen position
-    const x = overlay.x || 0;
-    const y = overlay.y || 0;
-    const lines = Array.isArray(overlay.text) ? overlay.text : [overlay.text];
-
-    // Set styles
-    overlayCtx.font = `${overlay.fontSize || 14}px monospace`;
-    overlayCtx.fillStyle = overlay.bgColor || 'rgba(0, 0, 0, 0.7)';
-    overlayCtx.textBaseline = 'top';
-
-    // Measure text
-    const lineHeight = (overlay.fontSize || 14) * 1.4;
-    const maxWidth = Math.max(...lines.map(line => overlayCtx.measureText(line).width));
-    const padding = overlay.padding || 10;
-
-    // Draw background
-    overlayCtx.fillRect(
-      x,
-      y,
-      maxWidth + padding * 2,
-      lines.length * lineHeight + padding * 2
-    );
-
-    // Draw text
-    overlayCtx.fillStyle = overlay.color || 'white';
-    lines.forEach((line, i) => {
-      overlayCtx.fillText(line, x + padding, y + padding + i * lineHeight);
-    });
-  }
-}
+  queryEntities(world, 'CanvasOverlay').forEach(entity =>
+    renderOverlayText(entity.CanvasOverlay)
+  );
+};

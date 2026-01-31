@@ -1,14 +1,11 @@
-// IntegrateSystem.js - Integrate velocity into position
+// IntegrateSystem.js - Euler integration
+// Updates position from velocity using p5.Vector methods
 
-function IntegrateSystem(world, dt) {
+const IntegrateSystem = (world, dt) => {
   const entities = queryEntities(world, 'Transform', 'Velocity');
 
-  for (let entity of entities) {
-    const pos = entity.Transform.pos;
-    const vel = entity.Velocity.vel;
-
-    pos.x += vel.x * dt;
-    pos.y += vel.y * dt;
-    pos.z += vel.z * dt;
-  }
-}
+  entities.forEach(entity => {
+    const { Transform: { pos }, Velocity: { vel } } = entity;
+    pos.add(p5.Vector.mult(vel, dt));
+  });
+};

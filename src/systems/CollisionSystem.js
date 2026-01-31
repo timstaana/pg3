@@ -1,20 +1,24 @@
-// CollisionSystem.js - Resolve player vs static environment collision
+// CollisionSystem.js - Sphere-triangle collision resolution
+// Multi-iteration solver with Mario-style slope walking
 
-function CollisionSystem(world, collisionWorld, dt) {
+const MAX_ITERATIONS = 3;
+
+const projectVelocityOffSurface = (vel, normal) => {
+  const velDotNormal = vel.dot(normal);
+  if (velDotNormal < 0) {
+    vel.sub(p5.Vector.mult(normal, velDotNormal));
+  }
+};
+
+const CollisionSystem = (world, collisionWorld, dt) => {
   const players = queryEntities(world, 'Player', 'Transform', 'Velocity');
 
-  for (let player of players) {
-    const playerData = player.Player;
-    const transform = player.Transform;
-    const vel = player.Velocity.vel;
+  players.forEach(player => {
+    const { Player: playerData, Transform: { pos }, Velocity: { vel } } = player;
+    const { radius } = playerData;
 
-    const pos = transform.pos;
-    const radius = playerData.radius;
-
-    // Reset grounded state
     playerData.grounded = false;
 
-    // Query nearby triangles using broadphase
     const candidates = queryTrianglesNearPlayer(
       collisionWorld,
       pos,
@@ -22,64 +26,40 @@ function CollisionSystem(world, collisionWorld, dt) {
       COLLISION_CONFIG
     );
 
-    // Collision resolution with multiple iterations for stability
-    const MAX_ITERATIONS = 3;
-
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
       let bestGround = null;
       let bestGroundY = -Infinity;
       let hadCollision = false;
 
-      for (let tri of candidates) {
-        // Use slightly larger radius for ground detection to prevent jitter
+      candidates.forEach(tri => {
         const groundCheckRadius = radius + GROUNDING_TOLERANCE;
         const contact = sphereVsTriangle(pos, groundCheckRadius, tri);
 
-        if (!contact) continue;
+        if (!contact) return;
 
-        // Only push out if actually penetrating (not just in tolerance zone)
         if (contact.depth > GROUNDING_TOLERANCE) {
           hadCollision = true;
           const pushDepth = contact.depth - GROUNDING_TOLERANCE;
-          pos.x += contact.normal.x * pushDepth;
-          pos.y += contact.normal.y * pushDepth;
-          pos.z += contact.normal.z * pushDepth;
+          pos.add(p5.Vector.mult(contact.normal, pushDepth));
         }
 
-        // Check if this is ground
         if (contact.normal.y >= MIN_GROUND_NY) {
-          // This is a walkable surface
           if (contact.point.y > bestGroundY) {
             bestGround = contact;
             bestGroundY = contact.point.y;
           }
         } else {
-          // Wall or steep slope - remove velocity into surface
-          const velDotNormal = vel.dot(contact.normal);
-          if (velDotNormal < 0) {
-            vel.x -= contact.normal.x * velDotNormal;
-            vel.y -= contact.normal.y * velDotNormal;
-            vel.z -= contact.normal.z * velDotNormal;
-          }
+          projectVelocityOffSurface(vel, contact.normal);
         }
-      }
+      });
 
-      // Apply grounding
       if (bestGround) {
         playerData.grounded = true;
         playerData.groundNormal = bestGround.normal.copy();
-
-        // Project velocity along ground plane (removes velocity into ground)
-        const velDotNormal = vel.dot(bestGround.normal);
-        if (velDotNormal < 0) {
-          vel.x -= bestGround.normal.x * velDotNormal;
-          vel.y -= bestGround.normal.y * velDotNormal;
-          vel.z -= bestGround.normal.z * velDotNormal;
-        }
+        projectVelocityOffSurface(vel, bestGround.normal);
       }
 
-      // Early exit if no collisions
       if (!hadCollision) break;
     }
-  }
-}
+  });
+};

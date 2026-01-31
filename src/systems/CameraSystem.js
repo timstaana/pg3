@@ -1,6 +1,5 @@
-// CameraSystem.js - Mario 64 style orbit camera with Y-up coordinates
+// CameraSystem.js
 
-// Camera rig state
 const cameraRig = {
   yaw: 0,
   pitch: 30,
@@ -9,67 +8,70 @@ const cameraRig = {
   targetPos: null,
   currentPos: null,
   smoothSpeed: 8.0,
-  // Current camera transform (updated each frame)
   camPosWorld: null,
   lookAtWorld: null,
   initialized: false
 };
 
-function CameraSystem(world, dt) {
-  const players = queryEntities(world, 'Player', 'Transform');
+const initializeCameraRig = () => {
+  cameraRig.targetPos = createVector(0, 0, 0);
+  cameraRig.currentPos = createVector(0, 0, 0);
+  cameraRig.camPosWorld = createVector(0, 0, 0);
+  cameraRig.lookAtWorld = createVector(0, 0, 0);
+  cameraRig.initialized = true;
+};
 
+const calculateCameraOffset = (yaw, pitch, distance, height) => {
+  const yawRad = radians(yaw);
+  const pitchRad = radians(pitch);
+
+  return createVector(
+    sin(yawRad) * cos(pitchRad) * distance,
+    sin(pitchRad) * distance + height,
+    cos(yawRad) * cos(pitchRad) * distance
+  );
+};
+
+const worldToP5 = (pos) => createVector(
+  pos.x * WORLD_SCALE,
+  -pos.y * WORLD_SCALE,
+  pos.z * WORLD_SCALE
+);
+
+const CameraSystem = (world, dt) => {
+  const players = queryEntities(world, 'Player', 'Transform');
   if (players.length === 0) return;
 
-  const player = players[0];
-  const playerPos = player.Transform.pos;
+  if (!cameraRig.initialized) initializeCameraRig();
 
-  // Initialize camera rig vectors on first run
-  if (!cameraRig.initialized) {
-    cameraRig.targetPos = createVector(0, 0, 0);
-    cameraRig.currentPos = createVector(0, 0, 0);
-    cameraRig.camPosWorld = createVector(0, 0, 0);
-    cameraRig.lookAtWorld = createVector(0, 0, 0);
-    cameraRig.initialized = true;
-  }
-
-  // Update target position (smooth follow)
+  const playerPos = players[0].Transform.pos;
   cameraRig.targetPos = playerPos.copy();
 
-  // Lerp current position towards target
   cameraRig.currentPos = p5.Vector.lerp(
     cameraRig.currentPos,
     cameraRig.targetPos,
-    Math.min(1.0, cameraRig.smoothSpeed * dt)
+    constrain(cameraRig.smoothSpeed * dt, 0, 1)
   );
 
-  // Calculate camera position from orbit parameters (Y-up coordinates)
-  const yawRad = radians(cameraRig.yaw);
-  const pitchRad = radians(cameraRig.pitch);
+  const offset = calculateCameraOffset(
+    cameraRig.yaw,
+    cameraRig.pitch,
+    cameraRig.distance,
+    cameraRig.height
+  );
 
-  const offsetX = Math.sin(yawRad) * Math.cos(pitchRad) * cameraRig.distance;
-  const offsetY = Math.sin(pitchRad) * cameraRig.distance + cameraRig.height;
-  const offsetZ = Math.cos(yawRad) * Math.cos(pitchRad) * cameraRig.distance;
+  cameraRig.camPosWorld = p5.Vector.add(cameraRig.currentPos, offset);
+  cameraRig.lookAtWorld = p5.Vector.add(
+    cameraRig.currentPos,
+    createVector(0, cameraRig.height * 0.5, 0)
+  );
 
-  const camPosWorld = p5.Vector.add(cameraRig.currentPos, createVector(offsetX, offsetY, offsetZ));
-  const lookAtWorld = p5.Vector.add(cameraRig.currentPos, createVector(0, cameraRig.height * 0.5, 0));
+  const camP5 = worldToP5(cameraRig.camPosWorld);
+  const lookP5 = worldToP5(cameraRig.lookAtWorld);
 
-  // Store for other systems to access
-  cameraRig.camPosWorld = camPosWorld.copy();
-  cameraRig.lookAtWorld = lookAtWorld.copy();
-
-  // Set p5 camera with Y-flip to convert from Y-up to Y-down
-  const camX = camPosWorld.x * WORLD_SCALE;
-  const camY = -camPosWorld.y * WORLD_SCALE; // Flip Y
-  const camZ = camPosWorld.z * WORLD_SCALE;
-
-  const lookX = lookAtWorld.x * WORLD_SCALE;
-  const lookY = -lookAtWorld.y * WORLD_SCALE; // Flip Y
-  const lookZ = lookAtWorld.z * WORLD_SCALE;
-
-  // Set p5 camera (up vector is positive Y in p5's Y-down space)
   camera(
-    camX, camY, camZ,
-    lookX, lookY, lookZ,
+    camP5.x, camP5.y, camP5.z,
+    lookP5.x, lookP5.y, lookP5.z,
     0, 1, 0
   );
-}
+};

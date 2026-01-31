@@ -1,14 +1,14 @@
-// GravitySystem.js - Apply gravity to non-grounded entities
+// GravitySystem.js - Gravity application
+// Applies downward acceleration when not grounded
 
-function GravitySystem(world, dt) {
+const GravitySystem = (world, dt) => {
   const players = queryEntities(world, 'Player', 'Velocity');
 
-  for (let player of players) {
-    const playerData = player.Player;
-    const vel = player.Velocity.vel;
+  players.forEach(player => {
+    const { Player: playerData, Velocity: { vel } } = player;
 
     if (!playerData.grounded) {
       vel.y -= GRAVITY * dt;
     }
-  }
-}
+  });
+};

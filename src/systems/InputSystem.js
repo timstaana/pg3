@@ -1,44 +1,38 @@
-// InputSystem.js - Handle keyboard input for player
+// InputSystem.js - Keyboard input processing
+// Captures WASD/Arrow movement and spacebar jump
 
-// Key state tracking
 const keys = {};
 
-function setupInputListeners() {
-  window.addEventListener('keydown', e => {
-    keys[e.key.toLowerCase()] = true;
-  });
+const setupInputListeners = () => {
+  window.addEventListener('keydown', e =>
+    keys[e.key.toLowerCase()] = true
+  );
+  window.addEventListener('keyup', e =>
+    keys[e.key.toLowerCase()] = false
+  );
+};
 
-  window.addEventListener('keyup', e => {
-    keys[e.key.toLowerCase()] = false;
-  });
-}
-
-function InputSystem(world, dt) {
+const InputSystem = (world, dt) => {
   const players = queryEntities(world, 'Player', 'Input', 'Transform');
 
-  for (let player of players) {
-    const input = player.Input;
+  players.forEach(player => {
+    const { Input: input } = player;
 
-    // WASD + Arrow keys for movement
-    let moveX = 0;
-    let moveZ = 0;
+    const moveX =
+      (keys['d'] || keys['arrowright'] ? 1 : 0) -
+      (keys['a'] || keys['arrowleft'] ? 1 : 0);
+    const moveZ =
+      (keys['s'] || keys['arrowdown'] ? 1 : 0) -
+      (keys['w'] || keys['arrowup'] ? 1 : 0);
 
-    if (keys['w'] || keys['arrowup']) moveZ -= 1;
-    if (keys['s'] || keys['arrowdown']) moveZ += 1;
-    if (keys['a'] || keys['arrowleft']) moveX -= 1;
-    if (keys['d'] || keys['arrowright']) moveX += 1;
+    const moveVec = createVector(moveX, 0, moveZ);
+    const len = moveVec.mag();
 
-    // Normalize diagonal movement
-    const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
     if (len > 0.01) {
-      moveX /= len;
-      moveZ /= len;
+      moveVec.normalize();
     }
 
-    input.move.x = moveX;
-    input.move.z = moveZ;
-
-    // Jump input
+    input.move.set(moveVec);
     input.jump = keys[' '] || false;
-  }
-}
+  });
+};
