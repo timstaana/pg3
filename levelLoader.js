@@ -5,13 +5,19 @@
 
 const vecFromArray = (arr) => createVector(...arr);
 const defaultScale = () => createVector(1, 1, 1);
+const scaleFromValue = (val) => {
+  if (typeof val === 'number') {
+    return createVector(val, val, val);
+  }
+  return val ? vecFromArray(val) : defaultScale();
+};
 
 // ========== Collider Processing ==========
 
 const processBoxCollider = (box, world, collisionWorld) => {
   const pos = vecFromArray(box.pos);
   const rot = vecFromArray(box.rot);
-  const scale = box.scale ? vecFromArray(box.scale) : defaultScale();
+  const scale = scaleFromValue(box.scale);
 
   addBoxCollider(collisionWorld, pos, rot, scale, box.size);
 
@@ -28,21 +34,29 @@ const processBoxCollider = (box, world, collisionWorld) => {
 const processMeshCollider = async (mesh, world, collisionWorld) => {
   const pos = vecFromArray(mesh.pos);
   const rot = vecFromArray(mesh.rot);
-  const scale = mesh.scale ? vecFromArray(mesh.scale) : defaultScale();
+  const scale = scaleFromValue(mesh.scale);
 
   try {
     const objResponse = await fetch(mesh.src);
     const objText = await objResponse.text();
-    const { vertices, faces } = parseOBJ(objText);
+    const { vertices, uvs, faces } = parseOBJ(objText);
 
-    addMeshCollider(collisionWorld, vertices, faces, pos, rot, scale);
+    const vertexIndices = faces.map(face => face.map(f => f.vertex));
+    addMeshCollider(collisionWorld, vertices, vertexIndices, pos, rot, scale);
+
+    let texture = null;
+    if (mesh.texture) {
+      texture = await new Promise((resolve, reject) => {
+        loadImage(mesh.texture, resolve, reject);
+      });
+    }
 
     createEntity(world, {
       Collider: {
         id: mesh.id,
         type: 'mesh',
         pos, rot, scale,
-        vertices, faces
+        vertices, uvs, faces, texture
       }
     });
 

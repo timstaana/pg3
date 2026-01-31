@@ -228,6 +228,7 @@ const queryTrianglesNearPlayer = (collisionWorld, playerPos, playerRadius, confi
 const parseOBJ = (objText) => {
   const lines = objText.split('\n');
   const vertices = [];
+  const uvs = [];
   const faces = [];
 
   lines.forEach(line => {
@@ -243,10 +244,19 @@ const parseOBJ = (objText) => {
         parseFloat(parts[2]),
         parseFloat(parts[3])
       ));
+    } else if (type === 'vt') {
+      uvs.push(createVector(
+        parseFloat(parts[1]),
+        parseFloat(parts[2])
+      ));
     } else if (type === 'f') {
-      const indices = parts.slice(1).map(part =>
-        parseInt(part.split('/')[0]) - 1
-      );
+      const indices = parts.slice(1).map(part => {
+        const [v, vt] = part.split('/');
+        return {
+          vertex: parseInt(v) - 1,
+          uv: vt ? parseInt(vt) - 1 : -1
+        };
+      });
 
       if (indices.length === 3) {
         faces.push(indices);
@@ -257,5 +267,5 @@ const parseOBJ = (objText) => {
     }
   });
 
-  return { vertices, faces };
+  return { vertices, uvs, faces };
 };
