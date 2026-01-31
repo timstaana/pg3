@@ -31,16 +31,20 @@ function CollisionSystem(world, collisionWorld, dt) {
       let hadCollision = false;
 
       for (let tri of candidates) {
-        const contact = sphereVsTriangle(pos, radius, tri);
+        // Use slightly larger radius for ground detection to prevent jitter
+        const groundCheckRadius = radius + GROUNDING_TOLERANCE;
+        const contact = sphereVsTriangle(pos, groundCheckRadius, tri);
 
         if (!contact) continue;
 
-        hadCollision = true;
-
-        // Push out of penetration
-        pos.x += contact.normal.x * contact.depth;
-        pos.y += contact.normal.y * contact.depth;
-        pos.z += contact.normal.z * contact.depth;
+        // Only push out if actually penetrating (not just in tolerance zone)
+        if (contact.depth > GROUNDING_TOLERANCE) {
+          hadCollision = true;
+          const pushDepth = contact.depth - GROUNDING_TOLERANCE;
+          pos.x += contact.normal.x * pushDepth;
+          pos.y += contact.normal.y * pushDepth;
+          pos.z += contact.normal.z * pushDepth;
+        }
 
         // Check if this is ground
         if (contact.normal.y >= MIN_GROUND_NY) {
@@ -65,12 +69,7 @@ function CollisionSystem(world, collisionWorld, dt) {
         playerData.grounded = true;
         playerData.groundNormal = vec3Copy(bestGround.normal);
 
-        // Remove downward velocity when grounded
-        if (vel.y < 0) {
-          vel.y = 0;
-        }
-
-        // Prevent sliding: project velocity along ground plane
+        // Project velocity along ground plane (removes velocity into ground)
         const velDotNormal = vec3Dot(vel, bestGround.normal);
         if (velDotNormal < 0) {
           vel.x -= bestGround.normal.x * velDotNormal;

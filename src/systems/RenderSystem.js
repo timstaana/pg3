@@ -23,6 +23,8 @@ function RenderSystem(world, dt) {
   ambientLight(100);
   directionalLight(200, 200, 200, -0.5, -1, -0.3);
 
+  // DEBUG spheres removed - see CameraAnchoredTextRenderSystem for camera-anchored test
+
   noFill();
   stroke(255);
   strokeWeight(1);

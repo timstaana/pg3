@@ -17,7 +17,10 @@ const cameraRig = {
   height: 2.0,
   targetPos: vec3(0, 0, 0),
   currentPos: vec3(0, 0, 0),
-  smoothSpeed: 8.0
+  smoothSpeed: 8.0,
+  // Current camera transform (updated each frame)
+  camPosWorld: vec3(0, 0, 0),
+  lookAtWorld: vec3(0, 0, 0)
 };
 
 function CameraSystem(world, dt) {
@@ -48,6 +51,10 @@ function CameraSystem(world, dt) {
 
   const camPosWorld = vec3Add(cameraRig.currentPos, vec3(offsetX, offsetY, offsetZ));
   const lookAtWorld = vec3Add(cameraRig.currentPos, vec3(0, cameraRig.height * 0.5, 0));
+
+  // Store for other systems to access
+  cameraRig.camPosWorld = vec3Copy(camPosWorld);
+  cameraRig.lookAtWorld = vec3Copy(lookAtWorld);
 
   // Convert to p5 units for rendering (with Y negation)
   const camPos = worldToP5Camera(camPosWorld);

@@ -39,3 +39,4 @@ function queryEntities(world, ...componentNames) {
 // { Velocity: { vel } }
 // { Player: { radius, grounded } }
 // { Collider: { ... } }
+// { CanvasOverlay: { x, y, text, fontSize, color, bgColor, padding } }

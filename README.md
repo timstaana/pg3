@@ -26,6 +26,7 @@ A minimal working skeleton of a 3rd-person platform game using p5.js v2 (WEBGL) 
   levelLoader.js             - Load and parse level JSON
   collisionWorld.js          - Build unified triangle world
   math3d.js                  - Vector math and collision helpers
+  textRenderer.js            - Text rendering for 3D and screen-space
   systems/
     InputSystem.js           - Handle keyboard input
     PlayerMotionSystem.js    - Apply input to velocity
@@ -55,6 +56,40 @@ index.html                   - HTML entry point
 - Per-triangle precompute: normal, AABB
 - Broadphase culling: simple AABB test around player
 - Mario-style grounding: surfaces with normal.y >= 0.707 are walkable
+
+### Text Rendering System
+
+The game uses a flexible text rendering system that works in WEBGL mode:
+- Text is rendered to 2D graphics buffers (cached)
+- Buffers are displayed as textured planes in 3D space
+- Supports both **screen-fixed** (UI overlays) and **world-space** (3D labels) text
+
+**Usage examples:**
+
+```javascript
+// Screen-fixed text (top-left corner)
+drawScreenText(
+  ['Line 1', 'Line 2'],
+  200, 60,        // x, y position on screen
+  400, 120,       // width, height
+  {
+    bgColor: [0, 0, 0, 180],  // optional background
+    fontSize: 14,              // optional font size
+    color: [255, 255, 255]     // optional text color
+  }
+);
+
+// World-space text (billboard in 3D)
+drawWorldText(
+  ['Platform 1'],
+  vec3(6, 3, -2), // world position
+  200, 40,        // width, height
+  {
+    bgColor: [100, 50, 150, 200],
+    billboard: true  // always face camera
+  }
+);
+```
 
 ### Constants
 
