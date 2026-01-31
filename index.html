@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minimal ECS 3D Platformer - Gallery 001</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: monospace;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <!-- p5.js v2 from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.2/p5.min.js"></script>
+
+  <!-- Configuration -->
+  <script src="src/config.js"></script>
+
+  <!-- Math utilities -->
+  <script src="src/math3d.js"></script>
+
+  <!-- ECS core -->
+  <script src="src/ecs.js"></script>
+
+  <!-- Collision world -->
+  <script src="src/collisionWorld.js"></script>
+
+  <!-- Level loader -->
+  <script src="src/levelLoader.js"></script>
+
+  <!-- Systems (order matters for dependencies) -->
+  <script src="src/systems/InputSystem.js"></script>
+  <script src="src/systems/PlayerMotionSystem.js"></script>
+  <script src="src/systems/GravitySystem.js"></script>
+  <script src="src/systems/IntegrateSystem.js"></script>
+  <script src="src/systems/CollisionSystem.js"></script>
+  <script src="src/systems/CameraSystem.js"></script>
+  <script src="src/systems/RenderSystem.js"></script>
+
+  <!-- Main entry point -->
+  <script src="src/main.js"></script>
+</body>
+</html>

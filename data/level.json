@@ -1,0 +1,60 @@
+{
+  "meta": {
+    "name": "Gallery 001"
+  },
+  "playerSpawns": [
+    {
+      "pos": [0.0, 3.0, 8.0],
+      "yaw": 180.0
+    }
+  ],
+  "collision": {
+    "boxes": [
+      {
+        "id": "floor",
+        "type": "box",
+        "pos": [0, 0, 0],
+        "rot": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "size": [20, 1, 20]
+      },
+      {
+        "id": "ramp",
+        "type": "box",
+        "pos": [-4, 0.5, -6],
+        "rot": [0, 0, 25],
+        "scale": [1, 1, 1],
+        "size": [6, 1, 6]
+      },
+      {
+        "id": "wall",
+        "type": "box",
+        "pos": [0, 1.5, -10],
+        "rot": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "size": [20, 3, 1]
+      },
+      {
+        "id": "platform1",
+        "type": "box",
+        "pos": [6, 2, -2],
+        "rot": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "size": [4, 0.5, 4]
+      },
+      {
+        "id": "platform2",
+        "type": "box",
+        "pos": [6, 4, 4],
+        "rot": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "size": [4, 0.5, 4]
+      }
+    ],
+    "meshes": []
+  },
+  "visuals": {
+    "models": [],
+    "billboards": []
+  }
+}
