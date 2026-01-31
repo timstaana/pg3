@@ -17,9 +17,9 @@ const PlayerMotionSystem = (world, dt) => {
     // Calculate slope-based speed adjustment
     let slopeMultiplier = 1.0;
     if (playerData.grounded && SLOPE_SPEED_FACTOR > 0 && input.forward !== 0) {
-      // Calculate steepness from ground normal Y component
-      // 1.0 = flat, MIN_GROUND_NY (~0.707 for 45deg) = max slope
-      const steepness = 1.0 - playerData.groundNormal.y;
+      // Calculate steepness using absolute Y to handle any normal orientation
+      const absY = Math.abs(playerData.groundNormal.y);
+      const steepness = 1.0 - absY;
       const maxSteepness = 1.0 - MIN_GROUND_NY;
       const normalizedSteepness = constrain(steepness / maxSteepness, 0, 1);
 
@@ -34,14 +34,20 @@ const PlayerMotionSystem = (world, dt) => {
       if (horizontalMag > 0.001 && normalizedSteepness > 0.01) {
         groundNormalHorizontal.normalize();
 
-        // Determine if moving uphill or downhill
-        // Negative = uphill, Positive = downhill
-        const slopeDirection = -forwardDir.dot(groundNormalHorizontal) * input.forward;
+        // Check dot product to determine if moving uphill or downhill
+        const dot = forwardDir.dot(groundNormalHorizontal);
+        const isUphill = dot < -0.05;
+        const isDownhill = dot > 0.05;
 
-        // Apply penalty when going uphill
-        if (slopeDirection > 0) {
+        if (isUphill) {
+          // Slow down when going uphill
           slopeMultiplier = 1.0 - (normalizedSteepness * SLOPE_SPEED_FACTOR);
           slopeMultiplier = constrain(slopeMultiplier, 0.3, 1.0);
+        } else if (isDownhill) {
+          // Speed up when going downhill - more aggressive on steeper slopes
+          const downhillBoost = normalizedSteepness * SLOPE_SPEED_FACTOR * 2;
+          slopeMultiplier = 1.0 + downhillBoost;
+          slopeMultiplier = constrain(slopeMultiplier, 1.0, 2.5);
         }
       }
     }

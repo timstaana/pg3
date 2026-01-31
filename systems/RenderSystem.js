@@ -66,7 +66,7 @@ const renderMeshCollider = (col) => {
 };
 
 const renderPlayer = (player) => {
-  const { Transform: { pos, rot }, Animation: anim } = player;
+  const { Transform: { pos, rot }, Animation: anim, Player: playerData } = player;
 
   // Calculate camera direction relative to player
   const camPos = cameraRig.camPosWorld;
@@ -95,19 +95,20 @@ const renderPlayer = (player) => {
   rotateY(radians(-rot.y));
 
   // Player size: 1 width x 1.5 height
-  // Sprite originates from bottom (feet at player position)
+  // Sprite originates from bottom of collision sphere (feet at ground)
   const halfWidth = 0.5;
   const playerHeight = 1.5;
+  const spriteBottom = -playerData.radius - .3;
 
   noStroke();
   texture(useFrontTexture ? PLAYER_FRONT_TEX : PLAYER_BACK_TEX);
   textureMode(NORMAL);
 
   beginShape();
-  vertex(-halfWidth, 0, 0, uMin, 1);
-  vertex(halfWidth, 0, 0, uMax, 1);
-  vertex(halfWidth, playerHeight, 0, uMax, 0);
-  vertex(-halfWidth, playerHeight, 0, uMin, 0);
+  vertex(-halfWidth, spriteBottom, 0, uMin, 1);
+  vertex(halfWidth, spriteBottom, 0, uMax, 1);
+  vertex(halfWidth, spriteBottom + playerHeight, 0, uMax, 0);
+  vertex(-halfWidth, spriteBottom + playerHeight, 0, uMin, 0);
   endShape(CLOSE);
 
   pop();

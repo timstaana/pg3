@@ -4,10 +4,14 @@
   },
   "physics": {
     "gravity": 30.0,
-    "maxSlopeDeg": 60.0,
-    "groundingTolerance": 0.01,
+    "maxSlopeDeg": 45.0,
+    "groundingTolerance": 0.5,
     "jumpHeight": 1.5,
     "slopeSpeedFactor": 1
+  },
+  "player": {
+    "moveSpeed": 6.0,
+    "turnSpeed": 100.0
   },
   "collision": {
     "queryMargin": 0.5,

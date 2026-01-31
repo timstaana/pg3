@@ -129,8 +129,8 @@ const createPlayer = (spawn, world) => {
       grounded: false,
       groundNormal: createVector(0, 1, 0),
       jumpSpeed,
-      moveSpeed: 4.0,
-      turnSpeed: 180.0
+      moveSpeed: PLAYER_MOVE_SPEED,
+      turnSpeed: PLAYER_TURN_SPEED
     },
     Transform: {
       pos: vecFromArray(spawn.pos),

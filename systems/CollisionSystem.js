@@ -29,6 +29,8 @@ const CollisionSystem = (world, collisionWorld, dt) => {
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
       let bestGround = null;
       let bestGroundY = -Infinity;
+      let steepestSlope = null;
+      let steepestSlopeY = -Infinity;
       let hadCollision = false;
 
       candidates.forEach(tri => {
@@ -49,6 +51,11 @@ const CollisionSystem = (world, collisionWorld, dt) => {
             bestGroundY = contact.point.y;
           }
         } else {
+          // Track steep slope contacts for sliding
+          if (contact.normal.y > 0.1 && contact.point.y > steepestSlopeY) {
+            steepestSlope = contact;
+            steepestSlopeY = contact.point.y;
+          }
           projectVelocityOffSurface(vel, contact.normal);
         }
       });
@@ -56,7 +63,13 @@ const CollisionSystem = (world, collisionWorld, dt) => {
       if (bestGround) {
         playerData.grounded = true;
         playerData.groundNormal = bestGround.normal.copy();
+        playerData.steepSlope = null;
         projectVelocityOffSurface(vel, bestGround.normal);
+      } else if (steepestSlope) {
+        // On a steep slope - not grounded but should slide
+        playerData.steepSlope = steepestSlope.normal.copy();
+      } else {
+        playerData.steepSlope = null;
       }
 
       if (!hadCollision) break;

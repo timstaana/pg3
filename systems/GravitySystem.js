@@ -8,7 +8,19 @@ const GravitySystem = (world, dt) => {
     const { Player: playerData, Velocity: { vel } } = player;
 
     if (!playerData.grounded) {
-      vel.y -= GRAVITY * dt;
+      if (playerData.steepSlope) {
+        // On a steep slope - apply sliding force
+        const gravityVec = createVector(0, -GRAVITY * dt, 0);
+
+        // Project gravity onto the slope plane
+        const normalDotGrav = playerData.steepSlope.dot(gravityVec);
+        const slideForce = p5.Vector.sub(gravityVec, p5.Vector.mult(playerData.steepSlope, normalDotGrav));
+
+        vel.add(slideForce);
+      } else {
+        // In air - normal gravity
+        vel.y -= GRAVITY * dt;
+      }
     }
   });
 };

@@ -18,6 +18,8 @@ let GROUNDING_TOLERANCE;
 let COLLISION_CONFIG;
 let JUMP_HEIGHT;
 let SLOPE_SPEED_FACTOR;
+let PLAYER_MOVE_SPEED;
+let PLAYER_TURN_SPEED;
 
 // Player textures
 let PLAYER_FRONT_TEX;
@@ -40,6 +42,8 @@ async function setup() {
   COLLISION_CONFIG = config.collision;
   JUMP_HEIGHT = config.physics.jumpHeight;
   SLOPE_SPEED_FACTOR = config.physics.slopeSpeedFactor;
+  PLAYER_MOVE_SPEED = config.player.moveSpeed;
+  PLAYER_TURN_SPEED = config.player.turnSpeed;
 
   world = createWorld();
   collisionWorld = createCollisionWorld();
@@ -88,7 +92,7 @@ const runSystems = (dt) => {
   IntegrateSystem(world, dt);
   CollisionSystem(world, collisionWorld, dt);
   AnimationSystem(world, dt);
-  CameraSystem(world, dt);
+  CameraSystem(world, collisionWorld, dt);
   RenderSystem(world, dt);
   CanvasOverlaySystem(world, dt);
 };

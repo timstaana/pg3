@@ -165,9 +165,11 @@ const computeTriangleAABB = (a, b, c) => ({
 const preprocessTriangle = (tri) => {
   tri.normal = computeTriangleNormal(tri.a, tri.b, tri.c);
 
-  // Ensure normals point upward for ground surfaces
-  // If Y component is negative, flip the normal
-  if (tri.normal.y < 0) {
+  // Only flip normals for walkable surfaces (not walls)
+  // Check if surface is walkable based on Y component magnitude
+  const absY = Math.abs(tri.normal.y);
+  if (absY >= MIN_GROUND_NY && tri.normal.y < 0) {
+    // This is a walkable surface with flipped normal - flip it
     tri.normal.mult(-1);
   }
 
