@@ -113,6 +113,17 @@ const renderPlayer = (player) => {
   pop();
 };
 
+const renderLabel = (label) => {
+  const options = {
+    fontSize: label.fontSize,
+    color: label.color,
+    bgColor: label.bgColor,
+    billboard: label.billboard
+  };
+
+  drawWorldText(label.text, label.pos, label.width, label.height, options);
+};
+
 const RenderSystem = (world, dt) => {
   background(20);
 
@@ -131,6 +142,8 @@ const RenderSystem = (world, dt) => {
   });
 
   queryEntities(world, 'Player', 'Transform').forEach(renderPlayer);
+
+  queryEntities(world, 'Label').forEach(entity => renderLabel(entity.Label));
 
   pop();
 };

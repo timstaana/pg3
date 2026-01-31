@@ -29,6 +29,22 @@ const processBoxCollider = (box, world, collisionWorld) => {
       size: box.size
     }
   });
+
+  // Process entity labels
+  if (box.label && Array.isArray(box.label)) {
+    box.label.forEach(labelDef => {
+      // Calculate centered position above the box with default +2 offset
+      const labelPos = createVector(pos.x, pos.y + box.size[1] / 2 + 2, pos.z);
+
+      // Apply additional offset if specified
+      if (labelDef.pos) {
+        const offset = vecFromArray(labelDef.pos);
+        labelPos.add(offset);
+      }
+
+      processLabel({ ...labelDef, pos: [labelPos.x, labelPos.y, labelPos.z] }, world);
+    });
+  }
 };
 
 const processMeshCollider = async (mesh, world, collisionWorld) => {
@@ -60,10 +76,45 @@ const processMeshCollider = async (mesh, world, collisionWorld) => {
       }
     });
 
+    // Process entity labels
+    if (mesh.label && Array.isArray(mesh.label)) {
+      mesh.label.forEach(labelDef => {
+        // Use mesh position as base with default +1 offset
+        const labelPos = createVector(pos.x, pos.y + 1, pos.z);
+
+        // Apply additional offset if specified
+        if (labelDef.pos) {
+          const offset = vecFromArray(labelDef.pos);
+          labelPos.add(offset);
+        }
+
+        processLabel({ ...labelDef, pos: [labelPos.x, labelPos.y, labelPos.z] }, world);
+      });
+    }
+
     console.log(`Loaded mesh: ${mesh.id} (${faces.length} faces)`);
   } catch (err) {
     console.warn(`Failed to load mesh: ${mesh.src}`, err);
   }
+};
+
+// ========== Label Processing ==========
+
+const processLabel = (label, world) => {
+  const pos = vecFromArray(label.pos);
+
+  createEntity(world, {
+    Label: {
+      text: label.text,
+      pos,
+      width: label.width || null,
+      height: label.height || null,
+      fontSize: label.fontSize || 14,
+      color: label.color || [255, 255, 255, 255],
+      bgColor: label.bgColor !== undefined ? label.bgColor : [0, 0, 0, 80],
+      billboard: label.billboard !== undefined ? label.billboard : true
+    }
+  });
 };
 
 // ========== Player Creation ==========
@@ -128,6 +179,12 @@ const loadLevel = async (levelPath, world, collisionWorld) => {
   }
 
   console.log(`Collision world: ${collisionWorld.tris.length} triangles`);
+
+  if (levelData.visuals && levelData.visuals.labels) {
+    levelData.visuals.labels.forEach(label =>
+      processLabel(label, world)
+    );
+  }
 
   const player = createPlayer(levelData.playerSpawns[0], world);
 

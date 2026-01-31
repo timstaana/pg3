@@ -25,6 +25,26 @@ const clearTextGraphicsCache = () => {
 
 // ========== Text Rendering ==========
 
+const calculateTextDimensions = (lines, fontSize, padding) => {
+  // Create temporary graphics to measure text
+  const temp = createGraphics(100, 100);
+  temp.textSize(fontSize);
+
+  let maxWidth = 0;
+  lines.forEach(line => {
+    const w = temp.textWidth(line);
+    if (w > maxWidth) maxWidth = w;
+  });
+
+  temp.remove();
+
+  const lineHeight = fontSize + 6;
+  const width = Math.ceil(maxWidth + padding * 2);
+  const height = Math.ceil(lines.length * lineHeight + padding * 2);
+
+  return { width, height };
+};
+
 const renderTextToGraphics = (lines, width, height, options = {}) => {
   const {
     fontSize = 14,
@@ -33,89 +53,69 @@ const renderTextToGraphics = (lines, width, height, options = {}) => {
     padding = 10
   } = options;
 
+  // Auto-calculate size if not provided
+  if (!width || !height) {
+    const dims = calculateTextDimensions(lines, fontSize, padding);
+    width = dims.width;
+    height = dims.height;
+  }
+
   const g = getTextGraphics(width, height);
   g.clear();
 
   if (bgColor) {
-    g.fill(...bgColor, bgColor[3] || 180);
+    g.fill(...bgColor, bgColor[3] || 80);
     g.noStroke();
     g.rect(0, 0, width, height);
   }
 
   g.fill(...color);
   g.noStroke();
-  g.textAlign(LEFT, TOP);
+  g.textAlign(CENTER, CENTER);
   g.textSize(fontSize);
 
   const lineHeight = fontSize + 6;
+  const totalTextHeight = lines.length * lineHeight;
+  const startY = (height - totalTextHeight) / 2 + lineHeight / 2;
+
   lines.forEach((line, i) => {
-    g.text(line, padding, padding + i * lineHeight);
+    g.text(line, width / 2, startY + i * lineHeight);
   });
 
-  return g;
-};
-
-// ========== Camera-Relative Text ==========
-
-const drawScreenText = (lines, x, y, width, height, options = {}) => {
-  if (!cameraRig) return;
-
-  const g = renderTextToGraphics(lines, width, height, options);
-  const { camPosWorld, lookAtWorld } = cameraRig;
-
-  const forward = p5.Vector.sub(lookAtWorld, camPosWorld).normalize();
-  const worldUp = createVector(0, 1, 0);
-  const right = p5.Vector.cross(forward, worldUp).normalize();
-  const up = p5.Vector.cross(right, forward).normalize();
-
-  const screenScale = 0.02;
-  const offsetX = (x - windowWidth / 2) * screenScale;
-  const offsetY = (y - windowHeight / 2) * screenScale;
-  const distanceFromCam = 2.0;
-
-  const textPosWorld = p5.Vector.add(
-    p5.Vector.add(camPosWorld, p5.Vector.mult(forward, distanceFromCam)),
-    p5.Vector.add(p5.Vector.mult(right, offsetX), p5.Vector.mult(up, -offsetY))
-  );
-
-  const worldToP5 = (pos) => ({
-    x: pos.x * WORLD_SCALE,
-    y: -pos.y * WORLD_SCALE,
-    z: pos.z * WORLD_SCALE
-  });
-
-  const textPosP5 = worldToP5(textPosWorld);
-
-  push();
-  translate(textPosP5.x, textPosP5.y, textPosP5.z);
-  rotateY(-atan2(forward.x, forward.z));
-  rotateX(asin(-forward.y));
-  noStroke();
-  texture(g);
-  plane(width * screenScale * WORLD_SCALE, height * screenScale * WORLD_SCALE);
-  pop();
+  return { g, width, height };
 };
 
 // ========== World-Space Text ==========
 
 const drawWorldText = (lines, worldPos, width, height, options = {}) => {
-  const g = renderTextToGraphics(lines, width, height, options);
+  if (!cameraRig) return;
 
-  const p5Pos = {
-    x: worldPos.x * WORLD_SCALE,
-    y: -worldPos.y * WORLD_SCALE,
-    z: worldPos.z * WORLD_SCALE
-  };
+  const result = renderTextToGraphics(lines, width, height, options);
+  const g = result.g;
+  const finalWidth = result.width;
+  const finalHeight = result.height;
+
+  // Scale from pixel dimensions to reasonable world size
+  const worldScale = 0.01;
+  const planeWidth = finalWidth * worldScale;
+  const planeHeight = finalHeight * worldScale;
 
   push();
-  translate(p5Pos.x, p5Pos.y, p5Pos.z);
+  translate(worldPos.x, worldPos.y, worldPos.z);
 
   if (options.billboard !== false) {
-    rotateY(atan2(p5Pos.x, p5Pos.z));
+    // Billboard to face camera
+    const camPos = cameraRig.camPosWorld;
+    const dx = camPos.x - worldPos.x;
+    const dz = camPos.z - worldPos.z;
+    rotateY(atan2(dx, dz));
   }
+
+  // Flip the plane to correct for Y-axis inversion in scaled coordinate system
+  rotateX(PI);
 
   noStroke();
   texture(g);
-  plane(width, height);
+  plane(planeWidth, planeHeight);
   pop();
 };
