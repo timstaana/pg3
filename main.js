@@ -58,6 +58,9 @@ async function setup() {
     loadImage('assets/player_back.png', resolve, reject);
   });
 
+  // Load alpha cutout shader
+  alphaCutoutShader = loadShader('shaders/alphaCutout.vert', 'shaders/alphaCutout.frag');
+
   const levelPath = `levels/${config.defaultLevel}/${config.defaultLevel}.json`;
   const result = await loadLevel(levelPath, world, collisionWorld);
   player = result.player;
@@ -86,6 +89,7 @@ async function setup() {
 // ========== Game Loop ==========
 
 const runSystems = (dt) => {
+  TouchInputSystem(world, dt);
   InputSystem(world, dt);
   PlayerMotionSystem(world, dt);
   GravitySystem(world, dt);
@@ -95,6 +99,7 @@ const runSystems = (dt) => {
   CameraSystem(world, collisionWorld, dt);
   RenderSystem(world, dt);
   CanvasOverlaySystem(world, dt);
+  TouchJoystickRenderSystem(world, dt, getTouchState());
 };
 
 function draw() {

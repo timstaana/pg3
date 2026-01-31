@@ -1,6 +1,8 @@
 // RenderSystem.js - 3D wireframe rendering
 // Y-up world space converted to p5.js Y-down space
 
+let alphaCutoutShader = null;
+
 const renderBoxCollider = (col) => {
   push();
   translate(col.pos.x, col.pos.y, col.pos.z);
@@ -85,8 +87,13 @@ const renderPlayer = (player) => {
   // Calculate UV coordinates for current frame
   // 3 frames arranged horizontally
   const frameWidth = 1 / anim.totalFrames;
-  const uMin = anim.currentFrame * frameWidth;
-  const uMax = (anim.currentFrame + 1) * frameWidth;
+  let uMin = anim.currentFrame * frameWidth;
+  let uMax = (anim.currentFrame + 1) * frameWidth;
+
+  // Flip UVs horizontally for back texture
+  if (!useFrontTexture) {
+    [uMin, uMax] = [uMax, uMin];
+  }
 
   push();
   translate(pos.x, pos.y, pos.z);
@@ -100,7 +107,18 @@ const renderPlayer = (player) => {
   const playerHeight = 1.5;
   const spriteBottom = -playerData.radius;
 
+  // Make sprite unaffected by scene lighting - render at full brightness
+  noLights();
+
+  // Use alpha cutout shader if available
+  if (alphaCutoutShader) {
+    shader(alphaCutoutShader);
+    alphaCutoutShader.setUniform('uTexture', useFrontTexture ? PLAYER_FRONT_TEX : PLAYER_BACK_TEX);
+    alphaCutoutShader.setUniform('uAlphaCutoff', 0.5);
+  }
+
   noStroke();
+  fill(255); // Render texture at full brightness
   texture(useFrontTexture ? PLAYER_FRONT_TEX : PLAYER_BACK_TEX);
   textureMode(NORMAL);
 
@@ -110,6 +128,15 @@ const renderPlayer = (player) => {
   vertex(halfWidth, spriteBottom + playerHeight, 0, uMax, 0);
   vertex(-halfWidth, spriteBottom + playerHeight, 0, uMin, 0);
   endShape(CLOSE);
+
+  // Reset shader and restore lighting
+  if (alphaCutoutShader) {
+    resetShader();
+  }
+
+  // Restore scene lighting for other objects
+  ambientLight(100);
+  directionalLight(200, 200, 200, 0, 1, 0);
 
   pop();
 };

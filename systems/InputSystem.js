@@ -19,15 +19,23 @@ const InputSystem = (world, dt) => {
     const { Input: input } = player;
 
     // Tank controls: forward/back and turn left/right
-    const forward =
+    const keyboardForward =
       (keys['w'] || keys['arrowup'] ? 1 : 0) -
       (keys['s'] || keys['arrowdown'] ? 1 : 0);
-    const turn =
+    const keyboardTurn =
       (keys['d'] || keys['arrowright'] ? 1 : 0) -
       (keys['a'] || keys['arrowleft'] ? 1 : 0);
 
-    input.forward = forward;
-    input.turn = turn;
-    input.jump = keys[' '] || false;
+    // Merge keyboard and touch input (keyboard takes priority)
+    // Touch input is set by TouchInputSystem, keyboard overrides if pressed
+    if (keyboardForward !== 0) {
+      input.forward = keyboardForward;
+    }
+    if (keyboardTurn !== 0) {
+      input.turn = keyboardTurn;
+    }
+    if (keys[' ']) {
+      input.jump = true;
+    }
   });
 };
