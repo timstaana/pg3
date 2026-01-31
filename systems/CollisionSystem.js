@@ -48,7 +48,7 @@ const CollisionSystem = (world, collisionWorld, dt) => {
         if (contact.normal.y >= MIN_GROUND_NY) {
           // Check if contact is on the triangle surface, not on an edge/vertex
           // by verifying the contact point is not too close to triangle edges
-          const EDGE_THRESHOLD = 0.05;
+          const EDGE_THRESHOLD = 0.5;
           const toA = p5.Vector.dist(contact.point, tri.a);
           const toB = p5.Vector.dist(contact.point, tri.b);
           const toC = p5.Vector.dist(contact.point, tri.c);
@@ -74,7 +74,7 @@ const CollisionSystem = (world, collisionWorld, dt) => {
         playerData.groundNormal = bestGround.normal.copy();
 
         // Smooth the ground normal to prevent rapid changes
-        const NORMAL_SMOOTH = 0.3;
+        const NORMAL_SMOOTH = .1;
         if (!playerData.smoothedGroundNormal) {
           playerData.smoothedGroundNormal = bestGround.normal.copy();
         } else {

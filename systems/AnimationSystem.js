@@ -8,14 +8,20 @@ const AnimationSystem = (world, dt) => {
 
     // Calculate horizontal speed (ignoring vertical component)
     const horizontalSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
-    const isTurning = Math.abs(input.turn) > 0.01;
-    const isMoving = horizontalSpeed > 0.1 || isTurning;
 
     // Set animation frames based on state
-    if (isMoving) {
+    if (input.turn || input.forward) {
+      // Check if transitioning from idle to walking
+      const wasIdle = anim.currentFrame === anim.idleFrame;
+      if (wasIdle) {
+        // Start walking animation immediately
+        anim.currentFrame = anim.walkFrames[0];
+        anim.frameTime = 0;
+      }
+
       // Use full speed when turning, scaled speed when moving forward
       let scaledFPS;
-      if (isTurning && horizontalSpeed < 0.1) {
+      if (input.turn && horizontalSpeed < 0.1) {
         // Turning in place - use full speed
         scaledFPS = anim.framesPerSecond;
       } else {

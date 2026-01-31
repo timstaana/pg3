@@ -3,15 +3,13 @@
 const SMOOTH = 0.12;
 
 const cameraRig = {
-  distance: 8.0,
-  minDistance: 1.5,
-  height: 2.0,
-  heightCrouch: 1.0,
-  lookAtYOffset: 1.0,
+  distance: 5.0,         // Boom arm length
+  minDistance: 2.0,      // Minimum distance when blocked
+  height: 1.5,           // Camera height above player
+  pitch: 10,             // Downward angle in degrees (like Lakitu looking down at Mario)
+  lookAtYOffset: 1.2,    // Look at player's upper body
   eye: null,
   center: null,
-  currentDistance: 8.0,
-  currentHeight: 2.0,
   initialized: false
 };
 
@@ -60,23 +58,30 @@ const raycastObstacle = (from, to, collisionWorld, checkRadius = 0.3) => {
 };
 
 // Check for obstacles above the player
-const checkOverhead = (playerPos, collisionWorld, checkHeight = 3.0, checkRadius = 0.5) => {
+const checkOverhead = (playerPos, collisionWorld, checkHeight = 2.5, checkRadius = 1.0) => {
   const topPoint = createVector(playerPos.x, playerPos.y + checkHeight, playerPos.z);
 
   for (const tri of collisionWorld.tris) {
-    // Only check downward-facing triangles (ceilings)
-    if (tri.normal.y > -0.3) continue;
+    // Check for ceiling triangles
+    // Note: Ceiling normals may be flipped upward during preprocessing
+    // So we check for both upward (flipped) and downward facing triangles
+    const isCeiling = tri.normal.y < -0.1 || tri.normal.y > 0.5;
+    if (!isCeiling) continue;
 
-    // Check if triangle is roughly above player
+    // Quick AABB check - is triangle in the vertical column above player?
+    const triMinY = Math.min(tri.a.y, tri.b.y, tri.c.y);
+    const triMaxY = Math.max(tri.a.y, tri.b.y, tri.c.y);
+
+    if (triMaxY < playerPos.y || triMinY > playerPos.y + checkHeight) continue;
+
+    // Check horizontal distance to triangle
     const triCenter = p5.Vector.add(tri.a, p5.Vector.add(tri.b, tri.c)).div(3);
-    if (triCenter.y < playerPos.y || triCenter.y > playerPos.y + checkHeight) continue;
-
     const horizontalDist = dist(playerPos.x, playerPos.z, triCenter.x, triCenter.z);
-    if (horizontalDist > checkRadius + 2) continue;
+    if (horizontalDist > checkRadius + 3) continue;
 
-    // Sample vertical line
-    const steps = 10;
-    for (let i = 0; i <= steps; i++) {
+    // Sample vertical ray above player
+    const steps = 8;
+    for (let i = 1; i <= steps; i++) {
       const t = i / steps;
       const point = p5.Vector.lerp(playerPos, topPoint, t);
 
@@ -97,56 +102,63 @@ const CameraSystem = (world, collisionWorld, dt) => {
   if (players.length === 0) return;
 
   const player = players[0];
-  const tgt = player.Transform.pos;
+  const playerPos = player.Transform.pos;
   const playerYaw = player.Transform.rot.y;
 
-  // Check for overhead obstacles
-  const hasOverhead = checkOverhead(tgt, collisionWorld);
-  const targetHeight = hasOverhead ? cameraRig.heightCrouch : cameraRig.height;
-
-  // Convert player yaw to radians (player's facing direction)
+  // Mario 64 style: Camera on a boom arm behind player
+  // Boom arm extends backward from player's facing direction
   const yawRad = radians(-playerYaw);
-  const sinYaw = sin(yawRad);
-  const cosYaw = cos(yawRad);
+  const pitchRad = radians(cameraRig.pitch);
 
-  // Calculate desired camera position behind player
-  // Camera looks from behind the player in the direction they're facing
-  let dx = tgt.x - sinYaw * cameraRig.distance;
-  let dy = tgt.y + targetHeight;
-  let dz = tgt.z - cosYaw * cameraRig.distance;
+  // Calculate boom arm position (distance back, height up, with pitch angle)
+  const horizontalDist = cameraRig.distance * cos(pitchRad);
+  const verticalOffset = cameraRig.distance * sin(pitchRad) + cameraRig.height;
 
-  // Raycast to check for obstacles
-  const desiredCamPos = createVector(dx, dy, dz);
-  const rayOrigin = createVector(tgt.x, tgt.y + targetHeight * 0.5, tgt.z);
-  const obstacle = raycastObstacle(rayOrigin, desiredCamPos, collisionWorld);
+  // Desired camera position: behind and above player
+  const desiredX = playerPos.x - sin(yawRad) * horizontalDist;
+  const desiredY = playerPos.y + verticalOffset;
+  const desiredZ = playerPos.z - cos(yawRad) * horizontalDist;
 
-  // Adjust distance if there's an obstacle
-  let actualDistance = cameraRig.distance;
+  // Raycast from player to camera to check for obstacles
+  const playerCenter = createVector(playerPos.x, playerPos.y + cameraRig.lookAtYOffset, playerPos.z);
+  const desiredCamPos = createVector(desiredX, desiredY, desiredZ);
+  const obstacle = raycastObstacle(playerCenter, desiredCamPos, collisionWorld, 0.5);
+
+  // If blocked, pull camera closer (shorten boom arm)
+  let finalX = desiredX;
+  let finalY = desiredY;
+  let finalZ = desiredZ;
+
   if (obstacle && obstacle.hit) {
-    actualDistance = Math.max(cameraRig.minDistance, obstacle.distance * 0.8);
-    dx = tgt.x - sinYaw * actualDistance;
-    dz = tgt.z - cosYaw * actualDistance;
+    const blockedDist = obstacle.distance * 0.9; // Pull slightly in front of obstacle
+    const adjustedDist = Math.max(cameraRig.minDistance, blockedDist);
+    const ratio = adjustedDist / cameraRig.distance;
+
+    finalX = playerPos.x - sin(yawRad) * horizontalDist * ratio;
+    finalY = playerPos.y + verticalOffset * ratio;
+    finalZ = playerPos.z - cos(yawRad) * horizontalDist * ratio;
   }
 
-  // Smooth distance and height transitions
-  cameraRig.currentDistance = lerp(cameraRig.currentDistance, actualDistance, SMOOTH);
-  cameraRig.currentHeight = lerp(cameraRig.currentHeight, targetHeight, SMOOTH);
+  // Look-at point: slightly above player's position
+  const lookAtX = playerPos.x;
+  const lookAtY = playerPos.y + cameraRig.lookAtYOffset;
+  const lookAtZ = playerPos.z;
 
-  // Initialize or smooth camera position
+  // Smooth camera movement (Lakitu lag)
   if (!cameraRig.initialized) {
-    cameraRig.eye = { x: dx, y: dy, z: dz };
-    cameraRig.center = { x: tgt.x, y: tgt.y + cameraRig.lookAtYOffset, z: tgt.z };
+    cameraRig.eye = { x: finalX, y: finalY, z: finalZ };
+    cameraRig.center = { x: lookAtX, y: lookAtY, z: lookAtZ };
     cameraRig.initialized = true;
   } else {
-    cameraRig.eye.x = lerp(cameraRig.eye.x, dx, SMOOTH);
-    cameraRig.eye.y = lerp(cameraRig.eye.y, dy, SMOOTH);
-    cameraRig.eye.z = lerp(cameraRig.eye.z, dz, SMOOTH);
-    cameraRig.center.x = lerp(cameraRig.center.x, tgt.x, SMOOTH);
-    cameraRig.center.y = lerp(cameraRig.center.y, tgt.y + cameraRig.lookAtYOffset, SMOOTH);
-    cameraRig.center.z = lerp(cameraRig.center.z, tgt.z, SMOOTH);
+    cameraRig.eye.x = lerp(cameraRig.eye.x, finalX, SMOOTH);
+    cameraRig.eye.y = lerp(cameraRig.eye.y, finalY, SMOOTH);
+    cameraRig.eye.z = lerp(cameraRig.eye.z, finalZ, SMOOTH);
+    cameraRig.center.x = lerp(cameraRig.center.x, lookAtX, SMOOTH);
+    cameraRig.center.y = lerp(cameraRig.center.y, lookAtY, SMOOTH);
+    cameraRig.center.z = lerp(cameraRig.center.z, lookAtZ, SMOOTH);
   }
 
-  // Store for use by other systems (like text renderer)
+  // Store for use by other systems
   cameraRig.camPosWorld = createVector(cameraRig.eye.x, cameraRig.eye.y, cameraRig.eye.z);
   cameraRig.lookAtWorld = createVector(cameraRig.center.x, cameraRig.center.y, cameraRig.center.z);
 

@@ -2,25 +2,21 @@
 // Applies downward acceleration when not grounded
 
 const GravitySystem = (world, dt) => {
-  const players = queryEntities(world, 'Player', 'Velocity');
+  const players = queryEntities(world, 'Player', 'Velocity', 'Input');
 
   players.forEach(player => {
-    const { Player: playerData, Velocity: { vel } } = player;
+    const { Player: playerData, Velocity: { vel },  Input: input } = player;
 
     if (!playerData.grounded) {
-      if (playerData.steepSlope) {
-        // On a steep slope - apply sliding force
-        const gravityVec = createVector(0, -GRAVITY * dt, 0);
-
-        // Project gravity onto the slope plane
-        const normalDotGrav = playerData.steepSlope.dot(gravityVec);
-        const slideForce = p5.Vector.sub(gravityVec, p5.Vector.mult(playerData.steepSlope, normalDotGrav));
-
-        vel.add(slideForce);
-      } else {
-        // In air - normal gravity
-        vel.y -= GRAVITY * dt;
-      }
+      // Apply normal gravity when not grounded
+      vel.y -= GRAVITY * dt;
     }
+
+    // if (playerData.grounded && playerData.groundNormal && input.turn) {
+    //   vel.y -= (GRAVITY * ((1-playerData.groundNormal?.y)+1)) * dt;
+    // } else if (playerData.steepSlope?.y) {
+    //   vel.y -= (GRAVITY * ((1-playerData.steepSlope?.y)+1)) * dt;
+    // }
+
   });
 };

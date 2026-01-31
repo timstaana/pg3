@@ -138,7 +138,10 @@ const updateDebugInfo = (dt) => {
     `Pos: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)})`,
     `Grounded: ${playerData.grounded}`,
     `Slope: ${slopeAngle.toFixed(1)}° (${slopeType})`,
-    `Triangles: ${collisionWorld.tris.length}`
+    `Triangles: ${collisionWorld.tris.length}`,
+    `Normal: ${playerData.smoothedGroundNormal?.y}`,
+    `Normal: ${playerData.steepSlope?.y}`,
+    // `SpeedMul: ${(playerData.slopeSpeedMul ?? 1).toFixed(2)}`,
   ];
 };
 
