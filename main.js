@@ -9,17 +9,37 @@ let player;
 let lastTime = 0;
 let debugTextEntity;
 
+// Global config constants (loaded from JSON)
+let WORLD_SCALE;
+let GRAVITY;
+let MAX_SLOPE_DEG;
+let MIN_GROUND_NY;
+let GROUNDING_TOLERANCE;
+let COLLISION_CONFIG;
+
 // ========== Initialization ==========
 
 async function setup() {
   createCanvas(windowWidth, windowHeight, WEBGL);
+
+  // Load configuration
+  const configResponse = await fetch('config.json');
+  const config = await configResponse.json();
+
+  WORLD_SCALE = config.world.scale;
+  GRAVITY = config.physics.gravity;
+  MAX_SLOPE_DEG = config.physics.maxSlopeDeg;
+  MIN_GROUND_NY = Math.cos(MAX_SLOPE_DEG * Math.PI / 180);
+  GROUNDING_TOLERANCE = config.physics.groundingTolerance;
+  COLLISION_CONFIG = config.collision;
 
   world = createWorld();
   collisionWorld = createCollisionWorld();
 
   setupInputListeners();
 
-  const result = await loadLevel('data/level.json', world, collisionWorld);
+  const levelPath = `levels/${config.defaultLevel}/${config.defaultLevel}.json`;
+  const result = await loadLevel(levelPath, world, collisionWorld);
   player = result.player;
 
   console.log('Setup complete!');
