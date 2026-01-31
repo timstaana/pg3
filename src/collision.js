@@ -1,4 +1,4 @@
-// p5helpers.js - Helper functions using p5.Vector for 3D platformer
+// collision.js - Collision detection and geometry utilities using p5.Vector
 
 // ========== Transform Utilities ==========
 
