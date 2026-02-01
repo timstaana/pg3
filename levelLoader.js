@@ -139,6 +139,100 @@ const processLabel = (label, world) => {
   });
 };
 
+// ========== Painting Processing ==========
+
+const fitSpriteTobounds = (width, height, aspect) => {
+  let fittedWidth = width;
+  let fittedHeight = height;
+
+  if (aspect && width > 0 && height > 0) {
+    const boundRatio = width / height;
+    if (aspect >= boundRatio) {
+      // Image is wider, fit to width
+      fittedWidth = width;
+      fittedHeight = width / aspect;
+    } else {
+      // Image is taller, fit to height
+      fittedHeight = height;
+      fittedWidth = height * aspect;
+    }
+  } else if (aspect && width > 0) {
+    fittedWidth = width;
+    fittedHeight = width / aspect;
+  } else if (aspect && height > 0) {
+    fittedHeight = height;
+    fittedWidth = height * aspect;
+  }
+
+  return { width: fittedWidth, height: fittedHeight };
+};
+
+const processPainting = async (painting, world, levelDir) => {
+  const pos = vecFromArray(painting.pos);
+  const rot = vecFromArray(painting.rot || [0, 0, 0]);
+  const scale = painting.scale || 1;
+
+  try {
+    const imagePath = `${levelDir}/${painting.src}`;
+    console.log(`Loading painting from: ${imagePath}`);
+
+    const img = await new Promise((resolve, reject) => {
+      loadImage(
+        imagePath,
+        (loadedImg) => {
+          console.log(`Image loaded: ${painting.src}, size: ${loadedImg.width}x${loadedImg.height}`);
+          resolve(loadedImg);
+        },
+        (err) => {
+          console.error(`Failed to load image: ${imagePath}`, err);
+          reject(err || new Error(`Failed to load: ${imagePath}`));
+        }
+      );
+    });
+
+    // For GIFs and better compatibility, render to a graphics buffer
+    let texture;
+    const isGif = painting.src.toLowerCase().endsWith('.gif');
+
+    if (isGif || img.gifProperties) {
+      // Create a graphics buffer for GIFs
+      const gfx = createGraphics(img.width, img.height);
+      gfx.pixelDensity(1);
+      gfx.image(img, 0, 0, img.width, img.height);
+      texture = gfx;
+      console.log(`Created graphics buffer for GIF: ${painting.src}`);
+    } else {
+      // Use the image directly for static images
+      texture = img;
+    }
+
+    // Calculate aspect ratio and fit to bounds
+    const aspect = img.width / img.height;
+    const boundWidth = painting.width || 2;
+    const boundHeight = painting.height || 2;
+    const fitted = fitSpriteTobounds(boundWidth, boundHeight, aspect);
+
+    console.log(`Aspect ratio: ${aspect.toFixed(2)}, fitted size: ${fitted.width.toFixed(2)}x${fitted.height.toFixed(2)}`);
+
+    createEntity(world, {
+      Painting: {
+        pos,
+        rot,
+        scale,
+        texture,
+        sourceImage: img,  // Keep reference to source for animation
+        width: fitted.width,
+        height: fitted.height
+      }
+    });
+
+    console.log(`Successfully loaded painting: ${painting.src}`);
+  } catch (err) {
+    console.error(`Failed to load painting: ${painting.src}`, err);
+    console.error('Error details:', err.message, err.stack);
+  }
+};
+
 // ========== Player Creation ==========
 
 const createPlayer = (spawn, world) => {
@@ -188,6 +282,9 @@ const loadLevel = async (levelPath, world, collisionWorld) => {
 
   console.log('Loading level:', levelData.meta.name);
 
+  // Extract directory path from level path for relative asset loading
+  const levelDir = levelPath.substring(0, levelPath.lastIndexOf('/'));
+
   if (levelData.collision.boxes) {
     levelData.collision.boxes.forEach(box =>
       processBoxCollider(box, world, collisionWorld)
@@ -207,6 +304,14 @@ const loadLevel = async (levelPath, world, collisionWorld) => {
   if (levelData.visuals && levelData.visuals.labels) {
     levelData.visuals.labels.forEach(label =>
       processLabel(label, world)
+    );
+  }
+
+  if (levelData.visuals && levelData.visuals.paintings) {
+    await Promise.all(
+      levelData.visuals.paintings.map(painting =>
+        processPainting(painting, world, levelDir)
+      )
     );
   }
 

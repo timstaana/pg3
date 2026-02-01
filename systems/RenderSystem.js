@@ -144,6 +144,64 @@ const renderLabel = (label) => {
   drawWorldText(label.text, label.pos, label.width, label.height, options);
 };
 
+const renderPainting = (painting) => {
+  // Guard: Skip if texture isn't fully loaded yet
+  if (!painting.texture) {
+    return;
+  }
+
+  // Check if texture has valid dimensions (works for both p5.Image and p5.Graphics)
+  const texWidth = painting.texture.width || 0;
+  const texHeight = painting.texture.height || 0;
+
+  if (texWidth === 0 || texHeight === 0) {
+    return;
+  }
+
+  // Update graphics buffer if this is an animated GIF
+  if (painting.sourceImage && painting.texture instanceof p5.Graphics) {
+    // Check if source image is animated
+    const frameCount = typeof painting.sourceImage.numFrames === 'function'
+      ? painting.sourceImage.numFrames()
+      : painting.sourceImage.numFrames;
+
+    if (frameCount && frameCount > 1) {
+      // Redraw current frame to graphics buffer
+      painting.texture.clear();
+      painting.texture.image(painting.sourceImage, 0, 0, texWidth, texHeight);
+    }
+  }
+
+  push();
+  translate(painting.pos.x, painting.pos.y, painting.pos.z);
+
+  // Apply rotation (Y rotation for wall mounting)
+  rotateY(radians(painting.rot.y));
+  rotateX(radians(-painting.rot.x));
+  rotateZ(radians(-painting.rot.z));
+
+  const w = painting.width * painting.scale;
+  const h = painting.height * painting.scale;
+
+  // Render using texture + beginShape (same approach as player sprite)
+  noStroke();
+  fill(255); // Render at full brightness
+  texture(painting.texture);
+  textureMode(NORMAL);
+
+  const halfW = w / 2;
+  const halfH = h / 2;
+
+  beginShape();
+  vertex(-halfW, -halfH, 0, 0, 1);  // Top-left (flipped V)
+  vertex(halfW, -halfH, 0, 1, 1);   // Top-right (flipped V)
+  vertex(halfW, halfH, 0, 1, 0);    // Bottom-right (flipped V)
+  vertex(-halfW, halfH, 0, 0, 0);   // Bottom-left (flipped V)
+  endShape(CLOSE);
+
+  pop();
+};
+
 const renderNormalDebug = (player) => {
   const { Transform: { pos }, Player: playerData } = player;
 
@@ -219,6 +277,11 @@ const RenderSystem = (world, dt) => {
     }
 
     renderLabel(label);
+  });
+
+  // Render paintings
+  queryEntities(world, 'Painting').forEach(entity => {
+    renderPainting(entity.Painting);
   });
 
   pop();

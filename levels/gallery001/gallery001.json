@@ -81,6 +81,32 @@
         "pos": [6, 5, 4],
         "bgColor": [100, 50, 150]
       }
+    ],
+    "paintings": [
+      {
+        "src": "art_00.jpg",
+        "pos": [0, 2, -9],
+        "rot": [0, 0, 0],
+        "scale": 1,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "src": "art_01.gif",
+        "pos": [5, 2, -9],
+        "rot": [0, 0, 0],
+        "scale": 1,
+        "width": 2.5,
+        "height": 2.5
+      },
+      {
+        "src": "dance.gif",
+        "pos": [-5, 2, -9],
+        "rot": [0, 0, 0],
+        "scale": 1,
+        "width": 2.5,
+        "height": 2.5
+      }
     ]
   }
 }
