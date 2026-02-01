@@ -10,7 +10,7 @@
     "terminalVelocity": 20.0
   },
   "player": {
-    "moveSpeed": 6.0,
+    "moveSpeed": 5.0,
     "turnSpeed": 80.0
   },
   "collision": {

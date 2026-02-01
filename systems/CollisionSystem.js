@@ -38,6 +38,8 @@ const CollisionSystem = (world, collisionWorld, dt) => {
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
       let bestGround = null;
       let bestGroundY = -Infinity;
+      let bestEdgeGround = null; // Fallback for edge contacts
+      let bestEdgeGroundY = -Infinity;
       let steepestSlope = null;
       let steepestSlopeY = -Infinity;
       let hadCollision = false;
@@ -63,7 +65,7 @@ const CollisionSystem = (world, collisionWorld, dt) => {
         if (contact.normal.y >= MIN_GROUND_NY) {
           // Check if contact is on the triangle surface, not on an edge/vertex
           // by checking distance to vertices AND edges
-          const EDGE_THRESHOLD = radius * 0.4; // Increased to reject sharp mesh features
+          const EDGE_THRESHOLD = radius * 0.3;
 
           // Check distance to vertices
           const toA = p5.Vector.dist(contact.point, tri.a);
@@ -77,9 +79,16 @@ const CollisionSystem = (world, collisionWorld, dt) => {
           const distToCA = distanceToLineSegment(contact.point, tri.c, tri.a);
           const isNearEdge = distToAB < EDGE_THRESHOLD || distToBC < EDGE_THRESHOLD || distToCA < EDGE_THRESHOLD;
 
-          if (!isNearVertex && !isNearEdge && contact.point.y > bestGroundY) {
-            bestGround = contact;
-            bestGroundY = contact.point.y;
+          if (!isNearVertex && !isNearEdge) {
+            // Prefer non-edge contacts
+            if (contact.point.y > bestGroundY) {
+              bestGround = contact;
+              bestGroundY = contact.point.y;
+            }
+          } else if (contact.point.y > bestEdgeGroundY) {
+            // Track edge contacts as fallback
+            bestEdgeGround = contact;
+            bestEdgeGroundY = contact.point.y;
           }
         } else {
           // Track steep slope contacts for sliding
@@ -91,21 +100,25 @@ const CollisionSystem = (world, collisionWorld, dt) => {
         }
       });
 
-      if (bestGround) {
+      // Use non-edge ground if available, otherwise fall back to edge contact
+      // This allows transitioning over mountain folds while avoiding edges when possible
+      const groundContact = bestGround || bestEdgeGround;
+
+      if (groundContact) {
         playerData.grounded = true;
-        playerData.groundNormal = bestGround.normal.copy();
+        playerData.groundNormal = groundContact.normal.copy();
 
         // Smooth the ground normal to prevent rapid changes
         const NORMAL_SMOOTH = .1;
         if (!playerData.smoothedGroundNormal) {
-          playerData.smoothedGroundNormal = bestGround.normal.copy();
+          playerData.smoothedGroundNormal = groundContact.normal.copy();
         } else {
-          playerData.smoothedGroundNormal.lerp(bestGround.normal, NORMAL_SMOOTH);
+          playerData.smoothedGroundNormal.lerp(groundContact.normal, NORMAL_SMOOTH);
           playerData.smoothedGroundNormal.normalize();
         }
 
         playerData.steepSlope = null;
-        projectVelocityOffSurface(vel, bestGround.normal);
+        projectVelocityOffSurface(vel, groundContact.normal);
       } else if (steepestSlope) {
         // On a steep slope - not grounded but should slide
         playerData.steepSlope = steepestSlope.normal.copy();
