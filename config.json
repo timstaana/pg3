@@ -37,5 +37,11 @@
     "requireFacing": true,
     "facingDot": 0.3
   },
+  "lightbox": {
+    "padding": 1.5,
+    "blendSpeed": 5.0,
+    "cooldownDuration": 0.5,
+    "distance": 2
+  },
   "defaultLevel": "gallery001"
 }

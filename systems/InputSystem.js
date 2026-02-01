@@ -57,8 +57,8 @@ const InputSystem = (world, dt) => {
 
     // Handle Space to enter lightbox or jump
     if (keysPressed[' ']) {
-      // Find closest interactable and activate lightbox
-      const interactables = queryEntities(world, 'Interaction', 'Painting');
+      // Find closest interactable (painting or sculpture) and activate lightbox
+      const interactables = queryEntities(world, 'Interaction');
       const closest = interactables.find(e => e.Interaction.isClosest);
 
       if (closest && typeof activateLightbox === 'function') {

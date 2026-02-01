@@ -139,6 +139,124 @@ const processLabel = (label, world) => {
   });
 };
 
+// ========== Sculpture Processing ==========
+
+const calculateModelBounds = (vertices) => {
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+  let minZ = Infinity, maxZ = -Infinity;
+
+  vertices.forEach(v => {
+    if (v.x < minX) minX = v.x;
+    if (v.x > maxX) maxX = v.x;
+    if (v.y < minY) minY = v.y;
+    if (v.y > maxY) maxY = v.y;
+    if (v.z < minZ) minZ = v.z;
+    if (v.z > maxZ) maxZ = v.z;
+  });
+
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const depth = maxZ - minZ;
+  const center = createVector(
+    (minX + maxX) / 2,
+    (minY + maxY) / 2,
+    (minZ + maxZ) / 2
+  );
+
+  return { width, height, depth, center, minX, maxX, minY, maxY, minZ, maxZ };
+};
+
+const processSculpture = async (sculpture, world, collisionWorld, levelDir) => {
+  const pos = vecFromArray(sculpture.pos);
+  const rot = vecFromArray(sculpture.rot || [0, 0, 0]);
+  const scale = scaleFromValue(sculpture.scale || 1);
+
+  try {
+    // Load OBJ model
+    const objPath = `${levelDir}/${sculpture.model}`;
+    console.log(`Loading sculpture model: ${objPath}`);
+
+    const objResponse = await fetch(objPath);
+    const objText = await objResponse.text();
+    const { vertices, uvs, faces } = parseOBJ(objText);
+
+    // Load texture
+    let texture = null;
+    if (sculpture.texture) {
+      const texturePath = `${levelDir}/${sculpture.texture}`;
+      console.log(`Loading sculpture texture: ${texturePath}`);
+      texture = await new Promise((resolve, reject) => {
+        loadImage(texturePath, resolve, reject);
+      });
+    }
+
+    // Calculate model bounds
+    const bounds = calculateModelBounds(vertices);
+    console.log(`Model bounds: ${bounds.width.toFixed(2)} x ${bounds.height.toFixed(2)} x ${bounds.depth.toFixed(2)}`);
+
+    // Calculate scale to fit within size bounds
+    const targetSize = sculpture.size || [2, 2, 2];
+    const scaleX = targetSize[0] / bounds.width;
+    const scaleY = targetSize[1] / bounds.height;
+    const scaleZ = targetSize[2] / bounds.depth;
+    const uniformScale = Math.min(scaleX, scaleY, scaleZ);
+
+    const finalScale = createVector(
+      scale.x * uniformScale,
+      scale.y * uniformScale,
+      scale.z * uniformScale
+    );
+
+    console.log(`Sculpture scale: ${uniformScale.toFixed(3)} to fit in [${targetSize}]`);
+
+    // Create sculpture entity
+    createEntity(world, {
+      Transform: {
+        pos,
+        rot,
+        scale: finalScale
+      },
+      Sculpture: {
+        pos,
+        rot,
+        scale: finalScale,
+        vertices,
+        uvs,
+        faces,
+        texture,
+        bounds,
+        geometry: null  // Will be created on first render
+      },
+      ...(sculpture.interaction !== false && {
+        Interaction: {
+          range: INTERACTION_CONFIG?.range || 4.0,
+          requireFacing: sculpture.requireFacing !== false,
+          facingDot: sculpture.facingDot || INTERACTION_CONFIG?.facingDot || 0.3,
+          inRange: false,
+          isClosest: false
+        },
+        Lightbox: {
+          padding: sculpture.lightboxPadding,
+          distance: sculpture.lightboxDistance,
+          yOffset: sculpture.yOffset || 0
+        }
+      })
+    });
+
+    // Add collision if specified
+    if (sculpture.collision !== false) {
+      const collisionSize = sculpture.collisionSize || targetSize;
+      addBoxCollider(collisionWorld, pos, rot, finalScale, collisionSize);
+      console.log(`Added collision box: [${collisionSize}]`);
+    }
+
+    console.log(`Successfully loaded sculpture: ${sculpture.model}`);
+  } catch (err) {
+    console.error(`Failed to load sculpture: ${sculpture.model}`, err);
+  }
+};
+
 // ========== Painting Processing ==========
 
 const fitSpriteTobounds = (width, height, aspect) => {
@@ -237,9 +355,9 @@ const processPainting = async (painting, world, levelDir) => {
         isClosest: false
       },
       Lightbox: {
-        distanceScale: 1.4,
-        distanceOffset: 0.6,
-        yOffset: 0
+        padding: painting.lightboxPadding,
+        distance: painting.lightboxDistance,
+        yOffset: painting.yOffset || 0
       }
     });
 
@@ -328,6 +446,14 @@ const loadLevel = async (levelPath, world, collisionWorld) => {
     await Promise.all(
       levelData.visuals.paintings.map(painting =>
         processPainting(painting, world, levelDir)
+      )
+    );
+  }
+
+  if (levelData.visuals && levelData.visuals.sculptures) {
+    await Promise.all(
+      levelData.visuals.sculptures.map(sculpture =>
+        processSculpture(sculpture, world, collisionWorld, levelDir)
       )
     );
   }

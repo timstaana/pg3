@@ -144,6 +144,89 @@ const renderLabel = (label) => {
   drawWorldText(label.text, label.pos, label.width, label.height, options);
 };
 
+const renderSculpture = (sculpture, isInteractable) => {
+  // Create geometry on first render
+  if (!sculpture.geometry) {
+    sculpture.geometry = new p5.Geometry();
+
+    sculpture.faces.forEach(face => {
+      const v0 = sculpture.vertices[face[0].vertex];
+      const v1 = sculpture.vertices[face[1].vertex];
+      const v2 = sculpture.vertices[face[2].vertex];
+
+      sculpture.geometry.vertices.push(createVector(v0.x, v0.y, v0.z));
+      sculpture.geometry.vertices.push(createVector(v1.x, v1.y, v1.z));
+      sculpture.geometry.vertices.push(createVector(v2.x, v2.y, v2.z));
+
+      if (sculpture.uvs && sculpture.uvs.length > 0) {
+        const uv0 = face[0].uv >= 0 ? sculpture.uvs[face[0].uv] : createVector(0, 0);
+        const uv1 = face[1].uv >= 0 ? sculpture.uvs[face[1].uv] : createVector(0, 0);
+        const uv2 = face[2].uv >= 0 ? sculpture.uvs[face[2].uv] : createVector(0, 0);
+
+        // Flip V coordinate for p5.js texture mapping
+        sculpture.geometry.uvs.push(uv0.x, 1 - uv0.y);
+        sculpture.geometry.uvs.push(uv1.x, 1 - uv1.y);
+        sculpture.geometry.uvs.push(uv2.x, 1 - uv2.y);
+      }
+
+      const len = sculpture.geometry.vertices.length;
+      sculpture.geometry.faces.push([len - 3, len - 2, len - 1]);
+    });
+
+    sculpture.geometry.computeNormals();
+  }
+
+  push();
+  translate(sculpture.pos.x, sculpture.pos.y, sculpture.pos.z);
+
+  rotateY(radians(sculpture.rot.y));
+  rotateX(radians(-sculpture.rot.x));
+  rotateZ(radians(-sculpture.rot.z));
+
+  // Draw outline if interactable
+  if (isInteractable) {
+    const outlineScale = 1.05; // 5% larger for outline
+    const pulseSpeed = 3;
+    const pulseAmount = 0.01;
+
+    // Animate outline with pulse effect
+    const pulse = Math.sin(millis() * 0.001 * pulseSpeed * 2 * Math.PI) * pulseAmount;
+    const finalOutlineScale = outlineScale + pulse;
+
+    push();
+    scale(sculpture.scale.x * finalOutlineScale, sculpture.scale.y * finalOutlineScale, sculpture.scale.z * finalOutlineScale);
+
+    // Disable backface culling for outline so it shows from all angles
+    const gl = drawingContext;
+    gl.disable(gl.CULL_FACE);
+
+    // Draw outline with glowing color
+    noStroke();
+    ambientMaterial(255, 220, 100); // Warm yellow-white glow
+    model(sculpture.geometry);
+
+    // Re-enable backface culling
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+
+    pop();
+  }
+
+  // Draw normal sculpture
+  scale(sculpture.scale.x, sculpture.scale.y, sculpture.scale.z);
+
+  if (sculpture.texture) {
+    texture(sculpture.texture);
+  } else {
+    ambientMaterial(200);
+  }
+
+  noStroke();
+  model(sculpture.geometry);
+
+  pop();
+};
+
 const renderPainting = (painting, isInteractable) => {
   // Guard: Skip if texture isn't fully loaded yet
   if (!painting.texture) {
@@ -316,6 +399,17 @@ const RenderSystem = (world, dt) => {
     // Hide outline when painting is focused
     const showOutline = isInteractable && !isFocused;
     renderPainting(entity.Painting, showOutline);
+  });
+
+  // Enable backface culling for sculptures
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
+
+  // Render sculptures
+  queryEntities(world, 'Sculpture').forEach(entity => {
+    const isInteractable = entity.Interaction && entity.Interaction.isClosest;
+    const isFocused = focusedEntity === entity;
+    renderSculpture(entity.Sculpture, isInteractable && !isFocused);
   });
 
   pop();

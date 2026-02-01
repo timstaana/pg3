@@ -23,6 +23,7 @@ let PLAYER_MOVE_SPEED;
 let PLAYER_TURN_SPEED;
 let CAMERA_CONFIG;
 let INTERACTION_CONFIG;
+let LIGHTBOX_CONFIG;
 
 // Player textures
 let PLAYER_FRONT_TEX;
@@ -50,6 +51,7 @@ async function setup() {
   PLAYER_TURN_SPEED = config.player.turnSpeed;
   CAMERA_CONFIG = config.camera;
   INTERACTION_CONFIG = config.interaction;
+  LIGHTBOX_CONFIG = config.lightbox;
 
   world = createWorld();
   collisionWorld = createCollisionWorld();
