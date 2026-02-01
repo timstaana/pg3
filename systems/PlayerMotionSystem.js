@@ -10,21 +10,12 @@ const PlayerMotionSystem = (world, dt) => {
     // Tank controls: rotate player with turn input
     rot.y += input.turn * playerData.turnSpeed * dt;
 
-    // Calculate speed modifier based on surface
-    let speedMod = 1.0; // Default speed when airborne or on flat ground
-
-    if (playerData.grounded && playerData.groundNormal && input.forward) {
-      speedMod = playerData.groundNormal.y;
-    } else if (playerData.steepSlope?.y) {
-      speedMod = playerData.steepSlope.y;
-    }
-
     // Move forward/backward in the direction player is facing
     const yawRad = radians(-rot.y);
     // Optimize: calculate velocity components directly without allocating vector
     const sinYaw = sin(yawRad);
     const cosYaw = cos(yawRad);
-    const speed = input.forward * (playerData.moveSpeed * speedMod);
+    const speed = input.forward * playerData.moveSpeed;
 
     vel.x = sinYaw * speed;
     vel.z = cosYaw * speed;

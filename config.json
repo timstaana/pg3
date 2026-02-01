@@ -3,10 +3,11 @@
     "scale": 50
   },
   "physics": {
-    "gravity": 25,
+    "gravity": 30,
     "maxSlopeDeg": 50.0,
     "groundingTolerance": 0.001,
-    "jumpHeight": 1.5
+    "jumpHeight": 1.5,
+    "terminalVelocity": 20.0
   },
   "player": {
     "moveSpeed": 6.0,

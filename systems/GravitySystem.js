@@ -10,13 +10,12 @@ const GravitySystem = (world, dt) => {
     if (!playerData.grounded) {
       // Apply normal gravity when not grounded
       vel.y -= GRAVITY * dt;
-    }
 
-    // if (playerData.grounded && playerData.groundNormal && input.turn) {
-    //   vel.y -= (GRAVITY * ((1-playerData.groundNormal?.y)+1)) * dt;
-    // } else if (playerData.steepSlope?.y) {
-    //   vel.y -= (GRAVITY * ((1-playerData.steepSlope?.y)+1)) * dt;
-    // }
+      // Clamp to terminal velocity to prevent tunneling through geometry
+      if (vel.y < -TERMINAL_VELOCITY) {
+        vel.y = -TERMINAL_VELOCITY;
+      }
+    }
 
   });
 };

@@ -17,6 +17,7 @@ let MIN_GROUND_NY;
 let GROUNDING_TOLERANCE;
 let COLLISION_CONFIG;
 let JUMP_HEIGHT;
+let TERMINAL_VELOCITY;
 let SLOPE_SPEED_FACTOR;
 let PLAYER_MOVE_SPEED;
 let PLAYER_TURN_SPEED;
@@ -42,6 +43,7 @@ async function setup() {
   GROUNDING_TOLERANCE = config.physics.groundingTolerance;
   COLLISION_CONFIG = config.collision;
   JUMP_HEIGHT = config.physics.jumpHeight;
+  TERMINAL_VELOCITY = config.physics.terminalVelocity;
   SLOPE_SPEED_FACTOR = config.physics.slopeSpeedFactor;
   PLAYER_MOVE_SPEED = config.player.moveSpeed;
   PLAYER_TURN_SPEED = config.player.turnSpeed;

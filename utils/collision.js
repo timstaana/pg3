@@ -239,19 +239,33 @@ const aabbOverlap = (aabb, queryBox) => !(
   aabb.maxZ < queryBox.min.z || aabb.minZ > queryBox.max.z
 );
 
-const queryTrianglesNearPlayer = (collisionWorld, playerPos, playerRadius, config = {}) => {
+const queryTrianglesNearPlayer = (collisionWorld, playerPos, playerRadius, config = {}, velocity = null) => {
   const { queryMargin = 0.5, downMargin = 2.0, upMargin = 2.0 } = config;
+
+  // Expand query box based on velocity to catch fast-moving collisions
+  let extraDown = 0;
+  let extraUp = 0;
+  let extraX = 0;
+  let extraZ = 0;
+
+  if (velocity) {
+    // Look ahead in the direction of movement
+    if (velocity.y < 0) extraDown = Math.abs(velocity.y) * 0.1; // Look ahead when falling
+    if (velocity.y > 0) extraUp = velocity.y * 0.1; // Look ahead when rising
+    if (velocity.x < 0) extraX = Math.abs(velocity.x) * 0.1;
+    if (velocity.z < 0) extraZ = Math.abs(velocity.z) * 0.1;
+  }
 
   const queryBox = {
     min: createVector(
-      playerPos.x - playerRadius - queryMargin,
-      playerPos.y - downMargin,
-      playerPos.z - playerRadius - queryMargin
+      playerPos.x - playerRadius - queryMargin - extraX,
+      playerPos.y - downMargin - extraDown,
+      playerPos.z - playerRadius - queryMargin - extraZ
     ),
     max: createVector(
-      playerPos.x + playerRadius + queryMargin,
-      playerPos.y + upMargin,
-      playerPos.z + playerRadius + queryMargin
+      playerPos.x + playerRadius + queryMargin + (velocity && velocity.x > 0 ? velocity.x * 0.1 : 0),
+      playerPos.y + upMargin + extraUp,
+      playerPos.z + playerRadius + queryMargin + (velocity && velocity.z > 0 ? velocity.z * 0.1 : 0)
     )
   };
 

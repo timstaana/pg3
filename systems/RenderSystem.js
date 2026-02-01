@@ -179,6 +179,11 @@ const RenderSystem = (world, dt) => {
   const cameraPos = cameraRig.camPosWorld || createVector(0, 5, 10);
   const cameraLookAt = cameraRig.lookAtWorld || createVector(0, 0, 0);
 
+  // Enable backface culling for meshes only
+  const gl = drawingContext;
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
+
   // Render colliders with frustum culling
   queryEntities(world, 'Collider').forEach(entity => {
     const col = entity.Collider;
@@ -194,6 +199,9 @@ const RenderSystem = (world, dt) => {
       renderMeshCollider(col);
     }
   });
+
+  // Disable backface culling for sprites
+  gl.disable(gl.CULL_FACE);
 
   // Always render player (they're always in view)
   queryEntities(world, 'Player', 'Transform').forEach(renderPlayer);
