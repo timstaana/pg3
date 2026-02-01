@@ -193,8 +193,8 @@ const RenderSystem = (world, dt) => {
 
   queryEntities(world, 'Player', 'Transform').forEach(renderPlayer);
 
-  // Debug: Draw ground normal
-  queryEntities(world, 'Player', 'Transform').forEach(renderNormalDebug);
+  // Debug: Draw ground normal (disabled for performance)
+  // queryEntities(world, 'Player', 'Transform').forEach(renderNormalDebug);
 
   queryEntities(world, 'Label').forEach(entity => renderLabel(entity.Label));
 

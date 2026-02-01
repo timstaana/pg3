@@ -19,7 +19,7 @@ const worldToP5 = (pos) => createVector(
   pos.z * WORLD_SCALE
 );
 
-// Raycast to check for obstacles between two points
+// Raycast to check for obstacles between two points (optimized)
 const raycastObstacle = (from, to, collisionWorld, checkRadius = 0.3) => {
   const dir = p5.Vector.sub(to, from);
   const maxDist = dir.mag();
@@ -28,20 +28,34 @@ const raycastObstacle = (from, to, collisionWorld, checkRadius = 0.3) => {
 
   dir.normalize();
 
-  // Check collision triangles along the ray
-  for (const tri of collisionWorld.tris) {
-    // Skip if triangle is too far from ray path
-    const midPoint = p5.Vector.add(from, p5.Vector.mult(dir, maxDist * 0.5));
-    const triCenter = p5.Vector.add(tri.a, p5.Vector.add(tri.b, tri.c)).div(3);
-    if (p5.Vector.dist(midPoint, triCenter) > maxDist + 2) continue;
+  // Use AABB to quickly filter triangles near the ray
+  const rayMin = createVector(
+    Math.min(from.x, to.x) - checkRadius,
+    Math.min(from.y, to.y) - checkRadius,
+    Math.min(from.z, to.z) - checkRadius
+  );
+  const rayMax = createVector(
+    Math.max(from.x, to.x) + checkRadius,
+    Math.max(from.y, to.y) + checkRadius,
+    Math.max(from.z, to.z) + checkRadius
+  );
 
-    // Sample points along the ray
-    const steps = Math.ceil(maxDist * 2);
+  // Only check triangles that overlap the ray bounding box
+  const candidates = collisionWorld.tris.filter(tri => {
+    const aabb = tri.aabb;
+    return !(aabb.maxX < rayMin.x || aabb.minX > rayMax.x ||
+             aabb.maxY < rayMin.y || aabb.minY > rayMax.y ||
+             aabb.maxZ < rayMin.z || aabb.minZ > rayMax.z);
+  });
+
+  // Reduce samples for better performance
+  const steps = Math.min(8, Math.ceil(maxDist * 1.5));
+
+  for (const tri of candidates) {
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
       const point = p5.Vector.add(from, p5.Vector.mult(dir, maxDist * t));
 
-      // Check if point is close to triangle
       const closest = closestPointOnTriangle(point, tri.a, tri.b, tri.c);
       const dist = p5.Vector.dist(point, closest);
 
@@ -57,30 +71,31 @@ const raycastObstacle = (from, to, collisionWorld, checkRadius = 0.3) => {
   return null;
 };
 
-// Check for obstacles above the player
+// Check for obstacles above the player (optimized)
 const checkOverhead = (playerPos, collisionWorld, checkHeight = 2.5, checkRadius = 1.0) => {
+  // Use AABB to filter candidates quickly
+  const candidates = collisionWorld.tris.filter(tri => {
+    // Only check ceiling-like triangles
+    const isCeiling = tri.normal.y < -0.1 || tri.normal.y > 0.5;
+    if (!isCeiling) return false;
+
+    // Quick AABB check using precomputed bounds
+    const aabb = tri.aabb;
+    if (aabb.maxY < playerPos.y || aabb.minY > playerPos.y + checkHeight) return false;
+
+    // Check horizontal overlap
+    return !(aabb.maxX < playerPos.x - checkRadius || aabb.minX > playerPos.x + checkRadius ||
+             aabb.maxZ < playerPos.z - checkRadius || aabb.minZ > playerPos.z + checkRadius);
+  });
+
+  // Early exit if no candidates
+  if (candidates.length === 0) return false;
+
   const topPoint = createVector(playerPos.x, playerPos.y + checkHeight, playerPos.z);
 
-  for (const tri of collisionWorld.tris) {
-    // Check for ceiling triangles
-    // Note: Ceiling normals may be flipped upward during preprocessing
-    // So we check for both upward (flipped) and downward facing triangles
-    const isCeiling = tri.normal.y < -0.1 || tri.normal.y > 0.5;
-    if (!isCeiling) continue;
-
-    // Quick AABB check - is triangle in the vertical column above player?
-    const triMinY = Math.min(tri.a.y, tri.b.y, tri.c.y);
-    const triMaxY = Math.max(tri.a.y, tri.b.y, tri.c.y);
-
-    if (triMaxY < playerPos.y || triMinY > playerPos.y + checkHeight) continue;
-
-    // Check horizontal distance to triangle
-    const triCenter = p5.Vector.add(tri.a, p5.Vector.add(tri.b, tri.c)).div(3);
-    const horizontalDist = dist(playerPos.x, playerPos.z, triCenter.x, triCenter.z);
-    if (horizontalDist > checkRadius + 3) continue;
-
-    // Sample vertical ray above player
-    const steps = 8;
+  // Reduce samples for better performance
+  const steps = 4;
+  for (const tri of candidates) {
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
       const point = p5.Vector.lerp(playerPos, topPoint, t);

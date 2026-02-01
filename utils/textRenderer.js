@@ -4,6 +4,7 @@
 // ========== Graphics Cache ==========
 
 const textGraphicsCache = new Map();
+let measurementGraphics = null; // Persistent graphics for text measurement
 
 const getTextGraphics = (width, height) => {
   const key = `${width}x${height}`;
@@ -18,25 +19,34 @@ const getTextGraphics = (width, height) => {
   return textGraphicsCache.get(key);
 };
 
+const getMeasurementGraphics = () => {
+  if (!measurementGraphics) {
+    measurementGraphics = createGraphics(100, 100);
+  }
+  return measurementGraphics;
+};
+
 const clearTextGraphicsCache = () => {
   textGraphicsCache.forEach(g => g.remove());
   textGraphicsCache.clear();
+  if (measurementGraphics) {
+    measurementGraphics.remove();
+    measurementGraphics = null;
+  }
 };
 
 // ========== Text Rendering ==========
 
 const calculateTextDimensions = (lines, fontSize, padding) => {
-  // Create temporary graphics to measure text
-  const temp = createGraphics(100, 100);
-  temp.textSize(fontSize);
+  // Use persistent graphics buffer for text measurement (avoid create/destroy every frame)
+  const g = getMeasurementGraphics();
+  g.textSize(fontSize);
 
   let maxWidth = 0;
   lines.forEach(line => {
-    const w = temp.textWidth(line);
+    const w = g.textWidth(line);
     if (w > maxWidth) maxWidth = w;
   });
-
-  temp.remove();
 
   const lineHeight = fontSize + 6;
   const width = Math.ceil(maxWidth + padding * 2);
