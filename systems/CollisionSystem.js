@@ -46,10 +46,12 @@ const CollisionSystem = (world, collisionWorld, dt) => {
 
       candidates.forEach(tri => {
         // Backface culling: skip triangles facing away from player
-        // This allows one-way collision (e.g., jump-through platforms)
-        const toPlayer = p5.Vector.sub(pos, tri.a);
-        const isFrontFacing = toPlayer.dot(tri.normal) > 0;
-        if (!isFrontFacing) return;
+        // Only apply to mesh colliders, not boxes (boxes are closed volumes)
+        if (!tri.isBox) {
+          const toPlayer = p5.Vector.sub(pos, tri.a);
+          const isFrontFacing = toPlayer.dot(tri.normal) > 0;
+          if (!isFrontFacing) return;
+        }
 
         const groundCheckRadius = radius + GROUNDING_TOLERANCE;
         const contact = sphereVsTriangle(pos, groundCheckRadius, tri);

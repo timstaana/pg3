@@ -11,7 +11,7 @@ const renderBoxCollider = (col) => {
   rotateZ(radians(-col.rot.z));
   scale(col.scale.x, col.scale.y, col.scale.z);
   fill(100, 200, 255);
-  // noStroke();
+  noStroke();
   box(col.size[0], col.size[1], col.size[2]);
   pop();
 };

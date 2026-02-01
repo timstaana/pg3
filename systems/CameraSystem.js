@@ -2,7 +2,7 @@
 
 const SMOOTH = 0.12;
 
-// Runtime camera state (settings loaded from CAMERA_CONFIG)
+// Runtime camera state
 const cameraRig = {
   eye: null,
   center: null,
@@ -17,7 +17,7 @@ const worldToP5 = (pos) => createVector(
   pos.z * WORLD_SCALE
 );
 
-// Raycast to check for obstacles between two points (optimized)
+// Raycast to check for obstacles between two points
 const raycastObstacle = (from, to, collisionWorld, checkRadius = 0.3) => {
   const dir = p5.Vector.sub(to, from);
   const maxDist = dir.mag();
@@ -46,10 +46,7 @@ const raycastObstacle = (from, to, collisionWorld, checkRadius = 0.3) => {
              aabb.maxZ < rayMin.z || aabb.minZ > rayMax.z);
   });
 
-  // Reduce samples for better performance
   const steps = Math.min(8, Math.ceil(maxDist * 1.5));
-
-  // Reuse point vector to avoid allocations in hot loop
   const point = createVector(0, 0, 0);
 
   for (const tri of candidates) {
@@ -57,7 +54,6 @@ const raycastObstacle = (from, to, collisionWorld, checkRadius = 0.3) => {
       const t = i / steps;
       const offset = maxDist * t;
 
-      // Optimize: reuse point vector instead of allocating new one
       point.x = from.x + dir.x * offset;
       point.y = from.y + dir.y * offset;
       point.z = from.z + dir.z * offset;
@@ -77,52 +73,7 @@ const raycastObstacle = (from, to, collisionWorld, checkRadius = 0.3) => {
   return null;
 };
 
-// Check for obstacles above the player (optimized)
-const checkOverhead = (playerPos, collisionWorld, checkHeight = 2.5, checkRadius = 1.0) => {
-  // Use AABB to filter candidates quickly
-  const candidates = collisionWorld.tris.filter(tri => {
-    // Only check ceiling-like triangles
-    const isCeiling = tri.normal.y < -0.1 || tri.normal.y > 0.5;
-    if (!isCeiling) return false;
-
-    // Quick AABB check using precomputed bounds
-    const aabb = tri.aabb;
-    if (aabb.maxY < playerPos.y || aabb.minY > playerPos.y + checkHeight) return false;
-
-    // Check horizontal overlap
-    return !(aabb.maxX < playerPos.x - checkRadius || aabb.minX > playerPos.x + checkRadius ||
-             aabb.maxZ < playerPos.z - checkRadius || aabb.minZ > playerPos.z + checkRadius);
-  });
-
-  // Early exit if no candidates
-  if (candidates.length === 0) return false;
-
-  const topY = playerPos.y + checkHeight;
-
-  // Reduce samples for better performance
-  const steps = 4;
-  // Reuse point vector to avoid allocations
-  const point = createVector(playerPos.x, playerPos.y, playerPos.z);
-
-  for (const tri of candidates) {
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      // Optimize: calculate lerp manually to reuse vector
-      point.y = playerPos.y + (topY - playerPos.y) * t;
-
-      const closest = closestPointOnTriangle(point, tri.a, tri.b, tri.c);
-      const distToTri = p5.Vector.dist(point, closest);
-
-      if (distToTri < checkRadius) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-};
-
-const CameraSystem = (world, collisionWorld, dt) => {
+const CameraSystem = (world, collisionWorld) => {
   const players = queryEntities(world, 'Player', 'Transform');
   if (players.length === 0) return;
 
@@ -130,33 +81,15 @@ const CameraSystem = (world, collisionWorld, dt) => {
   const playerPos = player.Transform.pos;
   const playerYaw = player.Transform.rot.y;
 
-  // Get camera config settings
   const cfg = CAMERA_CONFIG;
-  const overhead = cfg.overhead;
-
-  // Check if player is under something (ceiling, overhang, etc.)
-  const hasOverhead = checkOverhead(playerPos, collisionWorld, overhead.checkHeight, overhead.checkRadius);
-
-  // Adjust camera parameters based on overhead obstruction
-  let effectivePitch = cfg.pitch;
-  let effectiveDistance = cfg.distance;
-  let effectiveHeight = cfg.height;
-
-  if (hasOverhead) {
-    // When under cover: lower camera angle, zoom out, drop camera height
-    effectivePitch = cfg.pitch * overhead.pitchMultiplier;
-    effectiveDistance = cfg.distance * overhead.distanceMultiplier;
-    effectiveHeight = cfg.height * overhead.heightMultiplier;
-  }
 
   // Mario 64 style: Camera on a boom arm behind player
-  // Boom arm extends backward from player's facing direction
   const yawRad = radians(-playerYaw);
-  const pitchRad = radians(effectivePitch);
+  const pitchRad = radians(cfg.pitch);
 
   // Calculate boom arm position (distance back, height up, with pitch angle)
-  const horizontalDist = effectiveDistance * cos(pitchRad);
-  const verticalOffset = effectiveDistance * sin(pitchRad) + effectiveHeight;
+  const horizontalDist = cfg.distance * cos(pitchRad);
+  const verticalOffset = cfg.distance * sin(pitchRad) + cfg.height;
 
   // Desired camera position: behind and above player
   const desiredX = playerPos.x - sin(yawRad) * horizontalDist;
@@ -168,19 +101,21 @@ const CameraSystem = (world, collisionWorld, dt) => {
   const desiredCamPos = createVector(desiredX, desiredY, desiredZ);
   const obstacle = raycastObstacle(playerCenter, desiredCamPos, collisionWorld, 0.5);
 
-  // If blocked, pull camera closer (shorten boom arm)
+  // If blocked, pull camera closer
   let finalX = desiredX;
   let finalY = desiredY;
   let finalZ = desiredZ;
 
   if (obstacle && obstacle.hit) {
-    const blockedDist = obstacle.distance * 0.9; // Pull slightly in front of obstacle
+    const blockedDist = obstacle.distance * 0.9;
     const adjustedDist = Math.max(cfg.minDistance, blockedDist);
-    const ratio = adjustedDist / effectiveDistance;  // Use effective distance, not base distance
 
-    finalX = playerPos.x - sin(yawRad) * horizontalDist * ratio;
-    finalY = playerPos.y + verticalOffset * ratio;
-    finalZ = playerPos.z - cos(yawRad) * horizontalDist * ratio;
+    const adjustedHorizontalDist = adjustedDist * cos(pitchRad);
+    const adjustedVerticalOffset = adjustedDist * sin(pitchRad) + cfg.height;
+
+    finalX = playerPos.x - sin(yawRad) * adjustedHorizontalDist;
+    finalY = playerPos.y + adjustedVerticalOffset;
+    finalZ = playerPos.z - cos(yawRad) * adjustedHorizontalDist;
   }
 
   // Look-at point: slightly above player's position

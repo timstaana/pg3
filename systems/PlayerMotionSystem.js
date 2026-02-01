@@ -1,6 +1,9 @@
 // PlayerMotionSystem.js - Input to velocity conversion
 // Applies movement speed and jump mechanics
 
+const COYOTE_TIME = 0.1; // Seconds after leaving ground where jump is still allowed
+const JUMP_BUFFER_TIME = 0.15; // Seconds to buffer jump input before landing
+
 const PlayerMotionSystem = (world, dt) => {
   const players = queryEntities(world, 'Player', 'Input', 'Velocity', 'Transform');
 
@@ -56,21 +59,73 @@ const PlayerMotionSystem = (world, dt) => {
     vel.x = sinYaw * speed;
     vel.z = cosYaw * speed;
 
-    // Track jump state: can jump when grounded or on a slope, but only once until grounded again
-    const canJumpFrom = playerData.grounded || playerData.steepSlope;
+    // Initialize timers if they don't exist
+    if (playerData.coyoteTimer === undefined) playerData.coyoteTimer = 0;
+    if (playerData.jumpBufferTimer === undefined) playerData.jumpBufferTimer = 0;
 
-    // Reset jump availability when grounded
-    if (playerData.grounded) {
+    // Update coyote time: reset when grounded, decay when airborne
+    if (playerData.grounded || playerData.steepSlope) {
+      playerData.coyoteTimer = COYOTE_TIME;
       playerData.hasJumped = false;
+    } else {
+      playerData.coyoteTimer = Math.max(0, playerData.coyoteTimer - dt);
     }
 
-    // Allow jumping if: has jump input, can jump from current surface, and hasn't jumped yet
-    if (input.jump && canJumpFrom && !playerData.hasJumped) {
-      // Always jump straight up with consistent height
-      vel.y = playerData.jumpSpeed;
+    // Update jump buffer: set when jump pressed, decay over time
+    if (input.jump && !playerData.wasJumpPressed) {
+      playerData.jumpBufferTimer = JUMP_BUFFER_TIME;
+    }
+    playerData.wasJumpPressed = input.jump;
+    playerData.jumpBufferTimer = Math.max(0, playerData.jumpBufferTimer - dt);
+
+    // Allow jumping if:
+    // - Jump buffer is active (recently pressed jump)
+    // - Coyote time is active (recently left ground)
+    // - Haven't already used the jump
+    const canCoyoteJump = playerData.coyoteTimer > 0;
+    const hasBufferedJump = playerData.jumpBufferTimer > 0;
+
+    if (hasBufferedJump && canCoyoteJump && !playerData.hasJumped) {
+      let jumpSpeed = playerData.jumpSpeed;
+      let jumpNormal = createVector(0, 1, 0); // Default: jump straight up
+
+      if (playerData.grounded && playerData.groundNormal) {
+        jumpNormal = playerData.groundNormal.copy();
+
+        // If moving forward, reduce jump power when going uphill
+        if (input.forward !== 0) {
+          const yawRad = radians(-rot.y);
+          const forwardX = sin(yawRad);
+          const forwardZ = cos(yawRad);
+
+          const slopeX = -jumpNormal.x;
+          const slopeZ = -jumpNormal.z;
+          const slopeMag = Math.sqrt(slopeX * slopeX + slopeZ * slopeZ);
+
+          if (slopeMag > 0.01) {
+            const dot = (forwardX * slopeX + forwardZ * slopeZ) / slopeMag;
+
+            // If moving uphill (dot * forward > 0), reduce jump power
+            if (dot * input.forward > 0) {
+              const slopeAngle = Math.acos(Math.max(0, Math.min(1, jumpNormal.y)));
+              // Aggressive reduction: 0° = 100%, 45° = 60%, 90° = 20%
+              const angleFactor = slopeAngle / (Math.PI / 2);
+              const jumpMultiplier = Math.max(0.2, 1.0 - (angleFactor * 0.8));
+              jumpSpeed *= jumpMultiplier;
+            }
+          }
+        }
+      }
+
+      // Apply jump along slope normal (perpendicular to surface)
+      vel.x += jumpNormal.x * jumpSpeed;
+      vel.y += jumpNormal.y * jumpSpeed;
+      vel.z += jumpNormal.z * jumpSpeed;
 
       playerData.hasJumped = true;
       playerData.grounded = false;
+      playerData.jumpBufferTimer = 0; // Consume the buffered jump
+      playerData.coyoteTimer = 0; // Consume coyote time
     }
   });
 };

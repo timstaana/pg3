@@ -105,8 +105,9 @@ const runSystems = (dt) => {
   GravitySystem(world, dt);
   IntegrateSystem(world, dt);
   CollisionSystem(world, collisionWorld, dt);
+  RespawnSystem(world, dt);
   AnimationSystem(world, dt);
-  CameraSystem(world, collisionWorld, dt);
+  CameraSystem(world, collisionWorld);
   RenderSystem(world, dt);
   CanvasOverlaySystem(world, dt);
   TouchJoystickRenderSystem(world, dt, getTouchState());

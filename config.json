@@ -21,13 +21,13 @@
   "camera": {
     "distance": 5.0,
     "minDistance": 2.0,
-    "height": 1.5,
+    "height": 1.75,
     "pitch": 10,
-    "lookAtYOffset": 1.2,
+    "lookAtYOffset": 1.5,
     "overhead": {
       "pitchMultiplier": 0.3,
       "distanceMultiplier": 1.4,
-      "heightMultiplier": 0.4,
+      "heightMultiplier": 0.5,
       "checkHeight": 2.5,
       "checkRadius": 1.0
     }

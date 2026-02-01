@@ -141,10 +141,13 @@ const boxToTriangles = (pos, rot, scale, size) => {
 
   return faceIndices.flatMap(face => {
     const [a, b, c, d] = face.map(i => transformed[i]);
-    return [
+    const triangles = [
       { a: a.copy(), b: b.copy(), c: c.copy() },
       { a: a.copy(), b: c.copy(), c: d.copy() }
     ];
+    // Mark box triangles so collision system can skip backface culling
+    triangles.forEach(tri => tri.isBox = true);
+    return triangles;
   });
 };
 
