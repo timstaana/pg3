@@ -22,6 +22,7 @@ let SLOPE_SPEED_FACTOR;
 let PLAYER_MOVE_SPEED;
 let PLAYER_TURN_SPEED;
 let CAMERA_CONFIG;
+let INTERACTION_CONFIG;
 
 // Player textures
 let PLAYER_FRONT_TEX;
@@ -48,6 +49,7 @@ async function setup() {
   PLAYER_MOVE_SPEED = config.player.moveSpeed;
   PLAYER_TURN_SPEED = config.player.turnSpeed;
   CAMERA_CONFIG = config.camera;
+  INTERACTION_CONFIG = config.interaction;
 
   world = createWorld();
   collisionWorld = createCollisionWorld();
@@ -107,6 +109,8 @@ const runSystems = (dt) => {
   CollisionSystem(world, collisionWorld, dt);
   RespawnSystem(world, dt);
   AnimationSystem(world, dt);
+  InteractionSystem(world);
+  LightboxSystem(world, dt);
   CameraSystem(world, collisionWorld);
   RenderSystem(world, dt);
   CanvasOverlaySystem(world, dt);

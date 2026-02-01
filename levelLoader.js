@@ -215,6 +215,11 @@ const processPainting = async (painting, world, levelDir) => {
     console.log(`Aspect ratio: ${aspect.toFixed(2)}, fitted size: ${fitted.width.toFixed(2)}x${fitted.height.toFixed(2)}`);
 
     createEntity(world, {
+      Transform: {
+        pos,
+        rot,
+        scale: defaultScale()
+      },
       Painting: {
         pos,
         rot,
@@ -223,6 +228,18 @@ const processPainting = async (painting, world, levelDir) => {
         sourceImage: img,  // Keep reference to source for animation
         width: fitted.width,
         height: fitted.height
+      },
+      Interaction: {
+        range: INTERACTION_CONFIG?.range || 4.0,
+        requireFacing: INTERACTION_CONFIG?.requireFacing !== false,
+        facingDot: INTERACTION_CONFIG?.facingDot || 0.3,
+        inRange: false,
+        isClosest: false
+      },
+      Lightbox: {
+        distanceScale: 1.4,
+        distanceOffset: 0.6,
+        yOffset: 0
       }
     });
 

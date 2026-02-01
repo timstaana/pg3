@@ -123,18 +123,40 @@ const CameraSystem = (world, collisionWorld) => {
   const lookAtY = playerPos.y + cfg.lookAtYOffset;
   const lookAtZ = playerPos.z;
 
+  // Blend with lightbox camera if active
+  const lightbox = typeof getLightboxState === 'function' ? getLightboxState() : null;
+  const lightboxBlend = lightbox ? lightbox.blend : 0;
+
+  let targetEyeX = finalX;
+  let targetEyeY = finalY;
+  let targetEyeZ = finalZ;
+  let targetCenterX = lookAtX;
+  let targetCenterY = lookAtY;
+  let targetCenterZ = lookAtZ;
+
+  // If lightbox is active, blend towards lightbox camera
+  if (lightboxBlend > 0 && lightbox.targetPos && lightbox.targetLookAt) {
+    targetEyeX = lerp(finalX, lightbox.targetPos.x, lightboxBlend);
+    targetEyeY = lerp(finalY, lightbox.targetPos.y, lightboxBlend);
+    targetEyeZ = lerp(finalZ, lightbox.targetPos.z, lightboxBlend);
+    targetCenterX = lerp(lookAtX, lightbox.targetLookAt.x, lightboxBlend);
+    targetCenterY = lerp(lookAtY, lightbox.targetLookAt.y, lightboxBlend);
+    targetCenterZ = lerp(lookAtZ, lightbox.targetLookAt.z, lightboxBlend);
+  }
+
   // Smooth camera movement (Lakitu lag)
   if (!cameraRig.initialized) {
-    cameraRig.eye = { x: finalX, y: finalY, z: finalZ };
-    cameraRig.center = { x: lookAtX, y: lookAtY, z: lookAtZ };
+    cameraRig.eye = { x: targetEyeX, y: targetEyeY, z: targetEyeZ };
+    cameraRig.center = { x: targetCenterX, y: targetCenterY, z: targetCenterZ };
     cameraRig.initialized = true;
   } else {
-    cameraRig.eye.x = lerp(cameraRig.eye.x, finalX, SMOOTH);
-    cameraRig.eye.y = lerp(cameraRig.eye.y, finalY, SMOOTH);
-    cameraRig.eye.z = lerp(cameraRig.eye.z, finalZ, SMOOTH);
-    cameraRig.center.x = lerp(cameraRig.center.x, lookAtX, SMOOTH);
-    cameraRig.center.y = lerp(cameraRig.center.y, lookAtY, SMOOTH);
-    cameraRig.center.z = lerp(cameraRig.center.z, lookAtZ, SMOOTH);
+    const smooth = lightboxBlend > 0.5 ? SMOOTH * 1.5 : SMOOTH; // Slower in lightbox mode
+    cameraRig.eye.x = lerp(cameraRig.eye.x, targetEyeX, smooth);
+    cameraRig.eye.y = lerp(cameraRig.eye.y, targetEyeY, smooth);
+    cameraRig.eye.z = lerp(cameraRig.eye.z, targetEyeZ, smooth);
+    cameraRig.center.x = lerp(cameraRig.center.x, targetCenterX, smooth);
+    cameraRig.center.y = lerp(cameraRig.center.y, targetCenterY, smooth);
+    cameraRig.center.z = lerp(cameraRig.center.z, targetCenterZ, smooth);
   }
 
   // Store for use by other systems

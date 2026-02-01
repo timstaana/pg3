@@ -144,7 +144,7 @@ const renderLabel = (label) => {
   drawWorldText(label.text, label.pos, label.width, label.height, options);
 };
 
-const renderPainting = (painting) => {
+const renderPainting = (painting, isInteractable) => {
   // Guard: Skip if texture isn't fully loaded yet
   if (!painting.texture) {
     return;
@@ -183,14 +183,41 @@ const renderPainting = (painting) => {
   const w = painting.width * painting.scale;
   const h = painting.height * painting.scale;
 
-  // Render using texture + beginShape (same approach as player sprite)
+  const halfW = w / 2;
+  const halfH = h / 2;
+
+  // Draw outline if interactable
+  if (isInteractable) {
+    const outlineThickness = 0.15;
+    const outlineExpand = 0.2;
+    const pulseSpeed = 3;
+    const pulseAmount = 0.05;
+
+    // Animate outline with pulse effect
+    const pulse = Math.sin(millis() * 0.001 * pulseSpeed * 2 * Math.PI) * pulseAmount;
+    const expandedW = w + outlineExpand + pulse;
+    const expandedH = h + outlineExpand + pulse;
+    const expandedHalfW = expandedW / 2;
+    const expandedHalfH = expandedH / 2;
+
+    // Draw glowing outline
+    noFill();
+    stroke(255, 220, 100); // Warm yellow-white glow
+    strokeWeight(outlineThickness);
+
+    beginShape();
+    vertex(-expandedHalfW, -expandedHalfH, 0.01);
+    vertex(expandedHalfW, -expandedHalfH, 0.01);
+    vertex(expandedHalfW, expandedHalfH, 0.01);
+    vertex(-expandedHalfW, expandedHalfH, 0.01);
+    endShape(CLOSE);
+  }
+
+  // Render painting texture
   noStroke();
   fill(255); // Render at full brightness
   texture(painting.texture);
   textureMode(NORMAL);
-
-  const halfW = w / 2;
-  const halfH = h / 2;
 
   beginShape();
   vertex(-halfW, -halfH, 0, 0, 1);  // Top-left (flipped V)
@@ -280,8 +307,15 @@ const RenderSystem = (world, dt) => {
   });
 
   // Render paintings
+  const lightbox = typeof getLightboxState === 'function' ? getLightboxState() : null;
+  const focusedEntity = lightbox ? lightbox.targetEntity : null;
+
   queryEntities(world, 'Painting').forEach(entity => {
-    renderPainting(entity.Painting);
+    const isInteractable = entity.Interaction && entity.Interaction.isClosest;
+    const isFocused = focusedEntity === entity;
+    // Hide outline when painting is focused
+    const showOutline = isInteractable && !isFocused;
+    renderPainting(entity.Painting, showOutline);
   });
 
   pop();

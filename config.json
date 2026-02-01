@@ -32,5 +32,10 @@
       "checkRadius": 1.0
     }
   },
+  "interaction": {
+    "range": 4.0,
+    "requireFacing": true,
+    "facingDot": 0.3
+  },
   "defaultLevel": "gallery001"
 }
