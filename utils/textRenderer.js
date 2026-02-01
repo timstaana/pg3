@@ -74,12 +74,30 @@ const renderTextToGraphics = (lines, width, height, options = {}) => {
   g.clear();
 
   if (bgColor) {
-    g.fill(...bgColor, bgColor[3] || 80);
+    // p5.js v2 compatible color handling
+    if (Array.isArray(bgColor)) {
+      if (bgColor.length === 4) {
+        g.fill(bgColor[0], bgColor[1], bgColor[2], bgColor[3]);
+      } else {
+        g.fill(bgColor[0], bgColor[1], bgColor[2], 80);
+      }
+    } else {
+      g.fill(bgColor);
+    }
     g.noStroke();
     g.rect(0, 0, width, height);
   }
 
-  g.fill(...color);
+  // p5.js v2 compatible color handling
+  if (Array.isArray(color)) {
+    if (color.length === 4) {
+      g.fill(color[0], color[1], color[2], color[3]);
+    } else {
+      g.fill(color[0], color[1], color[2]);
+    }
+  } else {
+    g.fill(color);
+  }
   g.noStroke();
   g.textAlign(CENTER, CENTER);
   g.textSize(fontSize);

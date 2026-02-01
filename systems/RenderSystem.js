@@ -110,12 +110,9 @@ const renderPlayer = (player) => {
   // Make sprite unaffected by scene lighting - render at full brightness
   noLights();
 
-  // Use alpha cutout shader if available
-  if (alphaCutoutShader) {
-    shader(alphaCutoutShader);
-    alphaCutoutShader.setUniform('uTexture', useFrontTexture ? PLAYER_FRONT_TEX : PLAYER_BACK_TEX);
-    alphaCutoutShader.setUniform('uAlphaCutoff', 0.5);
-  }
+  // Note: Shader disabled for p5.js v2 compatibility
+  // p5.js v2 has breaking changes in shader API that need investigation
+  // Alpha cutout will work via texture alpha channel instead
 
   noStroke();
   fill(255); // Render texture at full brightness
@@ -128,11 +125,6 @@ const renderPlayer = (player) => {
   vertex(halfWidth, spriteBottom + playerHeight, 0, uMax, 0);
   vertex(-halfWidth, spriteBottom + playerHeight, 0, uMin, 0);
   endShape(CLOSE);
-
-  // Reset shader and restore lighting
-  if (alphaCutoutShader) {
-    resetShader();
-  }
 
   // Restore scene lighting for other objects
   ambientLight(100);

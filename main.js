@@ -60,12 +60,18 @@ async function setup() {
     loadImage('assets/player_back.png', resolve, reject);
   });
 
-  // Load alpha cutout shader
-  alphaCutoutShader = loadShader('shaders/alphaCutout.vert', 'shaders/alphaCutout.frag');
-
   const levelPath = `levels/${config.defaultLevel}/${config.defaultLevel}.json`;
   const result = await loadLevel(levelPath, world, collisionWorld);
   player = result.player;
+
+  // Load alpha cutout shader (with error handling for p5.js v2)
+  try {
+    alphaCutoutShader = loadShader('shaders/alphaCutout.vert', 'shaders/alphaCutout.frag');
+    console.log('Shader loaded successfully');
+  } catch (err) {
+    console.warn('Shader failed to load, rendering without alpha cutout:', err);
+    alphaCutoutShader = null;
+  }
 
   console.log('Setup complete!');
   console.log(`Entities: ${world.entities.length}`);
