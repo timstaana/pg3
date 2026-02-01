@@ -7,7 +7,9 @@ const AnimationSystem = (world, dt) => {
     const { Animation: anim, Velocity: { vel }, Input: input, Player: playerData } = entity;
 
     // Calculate horizontal speed (ignoring vertical component)
-    const horizontalSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+    // Optimize: use squared speed for comparison when possible
+    const horizontalSpeedSq = vel.x * vel.x + vel.z * vel.z;
+    const horizontalSpeed = Math.sqrt(horizontalSpeedSq);
 
     // Set animation frames based on state
     if (input.turn || input.forward) {

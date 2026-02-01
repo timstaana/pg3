@@ -51,10 +51,18 @@ const raycastObstacle = (from, to, collisionWorld, checkRadius = 0.3) => {
   // Reduce samples for better performance
   const steps = Math.min(8, Math.ceil(maxDist * 1.5));
 
+  // Reuse point vector to avoid allocations in hot loop
+  const point = createVector(0, 0, 0);
+
   for (const tri of candidates) {
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
-      const point = p5.Vector.add(from, p5.Vector.mult(dir, maxDist * t));
+      const offset = maxDist * t;
+
+      // Optimize: reuse point vector instead of allocating new one
+      point.x = from.x + dir.x * offset;
+      point.y = from.y + dir.y * offset;
+      point.z = from.z + dir.z * offset;
 
       const closest = closestPointOnTriangle(point, tri.a, tri.b, tri.c);
       const dist = p5.Vector.dist(point, closest);
@@ -62,7 +70,7 @@ const raycastObstacle = (from, to, collisionWorld, checkRadius = 0.3) => {
       if (dist < checkRadius) {
         return {
           hit: true,
-          distance: maxDist * t
+          distance: offset
         };
       }
     }
@@ -91,14 +99,18 @@ const checkOverhead = (playerPos, collisionWorld, checkHeight = 2.5, checkRadius
   // Early exit if no candidates
   if (candidates.length === 0) return false;
 
-  const topPoint = createVector(playerPos.x, playerPos.y + checkHeight, playerPos.z);
+  const topY = playerPos.y + checkHeight;
 
   // Reduce samples for better performance
   const steps = 4;
+  // Reuse point vector to avoid allocations
+  const point = createVector(playerPos.x, playerPos.y, playerPos.z);
+
   for (const tri of candidates) {
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
-      const point = p5.Vector.lerp(playerPos, topPoint, t);
+      // Optimize: calculate lerp manually to reuse vector
+      point.y = playerPos.y + (topY - playerPos.y) * t;
 
       const closest = closestPointOnTriangle(point, tri.a, tri.b, tri.c);
       const distToTri = p5.Vector.dist(point, closest);

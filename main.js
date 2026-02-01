@@ -120,8 +120,16 @@ function draw() {
 
 // ========== Debug Info ==========
 
+let debugUpdateCounter = 0;
+const DEBUG_UPDATE_INTERVAL = 3; // Update debug text every N frames
+
 const updateDebugInfo = (dt) => {
   if (!player || !collisionWorld || !debugTextEntity) return;
+
+  // Throttle debug updates to every N frames for performance
+  debugUpdateCounter++;
+  if (debugUpdateCounter < DEBUG_UPDATE_INTERVAL) return;
+  debugUpdateCounter = 0;
 
   const fps = round(1 / dt);
   const { Transform: { pos }, Player: playerData } = player;

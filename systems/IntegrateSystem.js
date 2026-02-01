@@ -6,6 +6,9 @@ const IntegrateSystem = (world, dt) => {
 
   entities.forEach(entity => {
     const { Transform: { pos }, Velocity: { vel } } = entity;
-    pos.add(p5.Vector.mult(vel, dt));
+    // Optimize: modify position in-place without allocating new vector
+    pos.x += vel.x * dt;
+    pos.y += vel.y * dt;
+    pos.z += vel.z * dt;
   });
 };
