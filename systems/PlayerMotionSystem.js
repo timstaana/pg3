@@ -16,7 +16,7 @@ const PlayerMotionSystem = (world, dt) => {
     if (playerData.grounded && playerData.groundNormal && input.forward) {
       speedMod = playerData.groundNormal.y;
     } else if (playerData.steepSlope?.y) {
-      speedMod = playerData.steepSlope.y * 1.3;
+      speedMod = playerData.steepSlope.y;
     }
 
     // Move forward/backward in the direction player is facing
