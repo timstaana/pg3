@@ -162,6 +162,34 @@ const computeTriangleAABB = (a, b, c) => ({
   minZ: min(a.z, b.z, c.z), maxZ: max(a.z, b.z, c.z)
 });
 
+const computeBoxAABB = (pos, rot, scale, size) => {
+  // For simplicity, compute AABB from box corners
+  const [hw, hh, hd] = size.map(s => s * 0.5);
+  const corners = [
+    createVector(-hw, -hh, -hd), createVector(hw, -hh, -hd),
+    createVector(hw, hh, -hd), createVector(-hw, hh, -hd),
+    createVector(-hw, -hh, hd), createVector(hw, -hh, hd),
+    createVector(hw, hh, hd), createVector(-hw, hh, hd)
+  ];
+
+  const transformed = corners.map(c => transformPoint(c, pos, rot, scale));
+
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+  let minZ = Infinity, maxZ = -Infinity;
+
+  transformed.forEach(p => {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+    if (p.z < minZ) minZ = p.z;
+    if (p.z > maxZ) maxZ = p.z;
+  });
+
+  return { minX, maxX, minY, maxY, minZ, maxZ };
+};
+
 const preprocessTriangle = (tri) => {
   tri.normal = computeTriangleNormal(tri.a, tri.b, tri.c);
 

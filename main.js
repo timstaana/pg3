@@ -20,6 +20,7 @@ let JUMP_HEIGHT;
 let SLOPE_SPEED_FACTOR;
 let PLAYER_MOVE_SPEED;
 let PLAYER_TURN_SPEED;
+let CAMERA_CONFIG;
 
 // Player textures
 let PLAYER_FRONT_TEX;
@@ -44,6 +45,7 @@ async function setup() {
   SLOPE_SPEED_FACTOR = config.physics.slopeSpeedFactor;
   PLAYER_MOVE_SPEED = config.player.moveSpeed;
   PLAYER_TURN_SPEED = config.player.turnSpeed;
+  CAMERA_CONFIG = config.camera;
 
   world = createWorld();
   collisionWorld = createCollisionWorld();

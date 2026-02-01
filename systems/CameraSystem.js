@@ -2,15 +2,13 @@
 
 const SMOOTH = 0.12;
 
+// Runtime camera state (settings loaded from CAMERA_CONFIG)
 const cameraRig = {
-  distance: 5.0,         // Boom arm length
-  minDistance: 2.0,      // Minimum distance when blocked
-  height: 1.5,           // Camera height above player
-  pitch: 10,             // Downward angle in degrees (like Lakitu looking down at Mario)
-  lookAtYOffset: 1.2,    // Look at player's upper body
   eye: null,
   center: null,
-  initialized: false
+  initialized: false,
+  camPosWorld: null,
+  lookAtWorld: null
 };
 
 const worldToP5 = (pos) => createVector(
@@ -132,14 +130,33 @@ const CameraSystem = (world, collisionWorld, dt) => {
   const playerPos = player.Transform.pos;
   const playerYaw = player.Transform.rot.y;
 
+  // Get camera config settings
+  const cfg = CAMERA_CONFIG;
+  const overhead = cfg.overhead;
+
+  // Check if player is under something (ceiling, overhang, etc.)
+  const hasOverhead = checkOverhead(playerPos, collisionWorld, overhead.checkHeight, overhead.checkRadius);
+
+  // Adjust camera parameters based on overhead obstruction
+  let effectivePitch = cfg.pitch;
+  let effectiveDistance = cfg.distance;
+  let effectiveHeight = cfg.height;
+
+  if (hasOverhead) {
+    // When under cover: lower camera angle, zoom out, drop camera height
+    effectivePitch = cfg.pitch * overhead.pitchMultiplier;
+    effectiveDistance = cfg.distance * overhead.distanceMultiplier;
+    effectiveHeight = cfg.height * overhead.heightMultiplier;
+  }
+
   // Mario 64 style: Camera on a boom arm behind player
   // Boom arm extends backward from player's facing direction
   const yawRad = radians(-playerYaw);
-  const pitchRad = radians(cameraRig.pitch);
+  const pitchRad = radians(effectivePitch);
 
   // Calculate boom arm position (distance back, height up, with pitch angle)
-  const horizontalDist = cameraRig.distance * cos(pitchRad);
-  const verticalOffset = cameraRig.distance * sin(pitchRad) + cameraRig.height;
+  const horizontalDist = effectiveDistance * cos(pitchRad);
+  const verticalOffset = effectiveDistance * sin(pitchRad) + effectiveHeight;
 
   // Desired camera position: behind and above player
   const desiredX = playerPos.x - sin(yawRad) * horizontalDist;
@@ -147,7 +164,7 @@ const CameraSystem = (world, collisionWorld, dt) => {
   const desiredZ = playerPos.z - cos(yawRad) * horizontalDist;
 
   // Raycast from player to camera to check for obstacles
-  const playerCenter = createVector(playerPos.x, playerPos.y + cameraRig.lookAtYOffset, playerPos.z);
+  const playerCenter = createVector(playerPos.x, playerPos.y + cfg.lookAtYOffset, playerPos.z);
   const desiredCamPos = createVector(desiredX, desiredY, desiredZ);
   const obstacle = raycastObstacle(playerCenter, desiredCamPos, collisionWorld, 0.5);
 
@@ -158,8 +175,8 @@ const CameraSystem = (world, collisionWorld, dt) => {
 
   if (obstacle && obstacle.hit) {
     const blockedDist = obstacle.distance * 0.9; // Pull slightly in front of obstacle
-    const adjustedDist = Math.max(cameraRig.minDistance, blockedDist);
-    const ratio = adjustedDist / cameraRig.distance;
+    const adjustedDist = Math.max(cfg.minDistance, blockedDist);
+    const ratio = adjustedDist / effectiveDistance;  // Use effective distance, not base distance
 
     finalX = playerPos.x - sin(yawRad) * horizontalDist * ratio;
     finalY = playerPos.y + verticalOffset * ratio;
@@ -168,7 +185,7 @@ const CameraSystem = (world, collisionWorld, dt) => {
 
   // Look-at point: slightly above player's position
   const lookAtX = playerPos.x;
-  const lookAtY = playerPos.y + cameraRig.lookAtYOffset;
+  const lookAtY = playerPos.y + cfg.lookAtYOffset;
   const lookAtZ = playerPos.z;
 
   // Smooth camera movement (Lakitu lag)

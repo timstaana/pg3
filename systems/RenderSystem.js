@@ -11,7 +11,7 @@ const renderBoxCollider = (col) => {
   rotateZ(radians(-col.rot.z));
   scale(col.scale.x, col.scale.y, col.scale.z);
   fill(100, 200, 255);
-  noStroke();
+  // noStroke();
   box(col.size[0], col.size[1], col.size[2]);
   pop();
 };
@@ -183,20 +183,43 @@ const RenderSystem = (world, dt) => {
   ambientLight(100);
   directionalLight(200, 200, 200, 0, 1, 0);
 
+  // Get camera position for frustum culling
+  const cameraPos = cameraRig.camPosWorld || createVector(0, 5, 10);
+  const cameraLookAt = cameraRig.lookAtWorld || createVector(0, 0, 0);
+
+  // Render colliders with frustum culling
   queryEntities(world, 'Collider').forEach(entity => {
-    if (entity.Collider.type === 'box') {
-      renderBoxCollider(entity.Collider);
-    } else if (entity.Collider.type === 'mesh') {
-      renderMeshCollider(entity.Collider);
+    const col = entity.Collider;
+
+    // Frustum culling: skip if collider is outside view
+    if (col.aabb && !isAABBVisible(col.aabb, cameraPos, cameraLookAt)) {
+      return; // Skip rendering this collider
+    }
+
+    if (col.type === 'box') {
+      renderBoxCollider(col);
+    } else if (col.type === 'mesh') {
+      renderMeshCollider(col);
     }
   });
 
+  // Always render player (they're always in view)
   queryEntities(world, 'Player', 'Transform').forEach(renderPlayer);
 
   // Debug: Draw ground normal (disabled for performance)
   // queryEntities(world, 'Player', 'Transform').forEach(renderNormalDebug);
 
-  queryEntities(world, 'Label').forEach(entity => renderLabel(entity.Label));
+  // Render labels with distance culling
+  queryEntities(world, 'Label').forEach(entity => {
+    const label = entity.Label;
+
+    // Skip labels that are too far or behind camera
+    if (!isPointVisible(label.pos, cameraPos, cameraLookAt, CULLING_CONFIG.labelMaxDistance)) {
+      return; // Skip rendering this label
+    }
+
+    renderLabel(label);
+  });
 
   pop();
 };

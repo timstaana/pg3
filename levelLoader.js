@@ -21,12 +21,16 @@ const processBoxCollider = (box, world, collisionWorld) => {
 
   addBoxCollider(collisionWorld, pos, rot, scale, box.size);
 
+  // Compute AABB for frustum culling
+  const aabb = computeBoxAABB(pos, rot, scale, box.size);
+
   createEntity(world, {
     Collider: {
       id: box.id,
       type: 'box',
       pos, rot, scale,
-      size: box.size
+      size: box.size,
+      aabb
     }
   });
 
@@ -60,6 +64,23 @@ const processMeshCollider = async (mesh, world, collisionWorld) => {
     const vertexIndices = faces.map(face => face.map(f => f.vertex));
     addMeshCollider(collisionWorld, vertices, vertexIndices, pos, rot, scale);
 
+    // Compute AABB for frustum culling - transform all vertices and find bounds
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    let minZ = Infinity, maxZ = -Infinity;
+
+    vertices.forEach(v => {
+      const transformed = transformPoint(v, pos, rot, scale);
+      if (transformed.x < minX) minX = transformed.x;
+      if (transformed.x > maxX) maxX = transformed.x;
+      if (transformed.y < minY) minY = transformed.y;
+      if (transformed.y > maxY) maxY = transformed.y;
+      if (transformed.z < minZ) minZ = transformed.z;
+      if (transformed.z > maxZ) maxZ = transformed.z;
+    });
+
+    const aabb = { minX, maxX, minY, maxY, minZ, maxZ };
+
     let texture = null;
     if (mesh.texture) {
       texture = await new Promise((resolve, reject) => {
@@ -72,7 +93,8 @@ const processMeshCollider = async (mesh, world, collisionWorld) => {
         id: mesh.id,
         type: 'mesh',
         pos, rot, scale,
-        vertices, uvs, faces, texture
+        vertices, uvs, faces, texture,
+        aabb
       }
     });
 
