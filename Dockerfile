@@ -3,11 +3,11 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files explicitly
-COPY package.json package-lock.json ./
+# Copy package files
+COPY package*.json ./
 
-# Install dependencies (production only)
-RUN npm ci --omit=dev
+# Install dependencies (npm install works without lockfile)
+RUN npm install --omit=dev
 
 # Production stage
 FROM node:18-alpine
@@ -21,7 +21,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY server.js ./
 COPY package.json ./
 
-# Copy game files (adjust if needed)
+# Copy game files
 COPY . .
 
 # Expose port
