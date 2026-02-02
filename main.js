@@ -58,17 +58,38 @@ async function setup() {
 
   setupInputListeners();
 
-  // Load player textures
-  PLAYER_FRONT_TEX = await new Promise((resolve, reject) => {
-    loadImage('assets/player_front.png', resolve, reject);
-  });
-  PLAYER_BACK_TEX = await new Promise((resolve, reject) => {
-    loadImage('assets/player_back.png', resolve, reject);
-  });
-
   const levelPath = `levels/${config.defaultLevel}/${config.defaultLevel}.json`;
   const result = await loadLevel(levelPath, world, collisionWorld);
   player = result.player;
+
+  // Load player textures (support level-specific player configuration)
+  const levelDir = levelPath.substring(0, levelPath.lastIndexOf('/'));
+  const levelData = result.levelData;
+
+  // Check if level defines custom player configuration with multiple avatars
+  const playerConfig = levelData.player || {};
+  let frontSpritePath = 'assets/player_front.png';
+  let backSpritePath = 'assets/player_back.png';
+
+  if (playerConfig.avatars && playerConfig.avatars.length > 0) {
+    // Support multiple avatar options
+    // For now, use the selected avatar or default to first one
+    const selectedId = playerConfig.selectedAvatar || playerConfig.avatars[0].id;
+    const avatar = playerConfig.avatars.find(a => a.id === selectedId) || playerConfig.avatars[0];
+
+    frontSpritePath = `${levelDir}/${avatar.front}`;
+    backSpritePath = `${levelDir}/${avatar.back}`;
+    console.log(`Loading avatar: ${avatar.name || avatar.id} (${selectedId})`);
+  }
+
+  console.log(`Loading player sprites: front=${frontSpritePath}, back=${backSpritePath}`);
+
+  PLAYER_FRONT_TEX = await new Promise((resolve, reject) => {
+    loadImage(frontSpritePath, resolve, reject);
+  });
+  PLAYER_BACK_TEX = await new Promise((resolve, reject) => {
+    loadImage(backSpritePath, resolve, reject);
+  });
 
   // Load alpha cutout shader (with error handling for p5.js v2)
   // p5.js v2 returns Promises from loadShader, so we need to await them

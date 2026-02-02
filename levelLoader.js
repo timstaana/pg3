@@ -51,13 +51,16 @@ const processBoxCollider = (box, world, collisionWorld) => {
   }
 };
 
-const processMeshCollider = async (mesh, world, collisionWorld) => {
+const processMeshCollider = async (mesh, world, collisionWorld, levelDir) => {
   const pos = vecFromArray(mesh.pos);
   const rot = vecFromArray(mesh.rot);
   const scale = scaleFromValue(mesh.scale);
 
   try {
-    const objResponse = await fetch(mesh.src);
+    const objPath = `${levelDir}/${mesh.src}`;
+    console.log(`Loading mesh collider: ${objPath}`);
+
+    const objResponse = await fetch(objPath);
     const objText = await objResponse.text();
     const { vertices, uvs, faces } = parseOBJ(objText);
 
@@ -83,8 +86,10 @@ const processMeshCollider = async (mesh, world, collisionWorld) => {
 
     let texture = null;
     if (mesh.texture) {
+      const texturePath = `${levelDir}/${mesh.texture}`;
+      console.log(`Loading mesh texture: ${texturePath}`);
       texture = await new Promise((resolve, reject) => {
-        loadImage(mesh.texture, resolve, reject);
+        loadImage(texturePath, resolve, reject);
       });
     }
 
@@ -429,7 +434,7 @@ const loadLevel = async (levelPath, world, collisionWorld) => {
   if (levelData.collision.meshes) {
     await Promise.all(
       levelData.collision.meshes.map(mesh =>
-        processMeshCollider(mesh, world, collisionWorld)
+        processMeshCollider(mesh, world, collisionWorld, levelDir)
       )
     );
   }
@@ -458,7 +463,10 @@ const loadLevel = async (levelPath, world, collisionWorld) => {
     );
   }
 
-  const player = createPlayer(levelData.playerSpawns[0], world);
+  // Get player spawn from player config (with backward compatibility)
+  const playerConfig = levelData.player || {};
+  const spawns = playerConfig.spawns || levelData.playerSpawns || [{ pos: [0, 3, 0], yaw: 0 }];
+  const player = createPlayer(spawns[0], world);
 
   return { levelData, player };
 };

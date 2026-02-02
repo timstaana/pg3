@@ -2,12 +2,14 @@
   "meta": {
     "name": "Gallery 001"
   },
-  "playerSpawns": [
-    {
-      "pos": [0.0, 3.0, 8.0],
-      "yaw": 180.0
-    }
-  ],
+  "player": {
+    "spawns": [
+      {
+        "pos": [0.0, 3.0, 8.0],
+        "yaw": 180.0
+      }
+    ]
+  },
   "collision": {
     "boxes": [
       {
@@ -59,8 +61,8 @@
     "meshes": [
       {
         "id": "terrain",
-        "src": "assets/terrain.obj",
-        "texture": "assets/terrain.png",
+        "src": "terrain.obj",
+        "texture": "terrain.png",
         "pos": [-25, 3, 0],
         "rot": [-15, 3, 15],
         "scale": 50
