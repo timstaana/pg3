@@ -414,6 +414,72 @@ const createPlayer = (spawn, world) => {
   });
 };
 
+// ========== NPC Creation ==========
+
+const createNPC = (npcDef, world) => {
+  const pos = vecFromArray(npcDef.pos);
+  const rot = createVector(0, npcDef.yaw || 0, 0);
+
+  const components = {
+    NPC: {
+      name: npcDef.name || npcDef.id || 'npc', // Use name, fallback to id for backward compatibility
+      avatarId: npcDef.avatar || 'default', // Which avatar sprites to use
+      radius: 0.4,
+      grounded: false,
+      groundNormal: createVector(0, 1, 0),
+      originalYaw: npcDef.yaw || 0 // Store original yaw for restoration
+    },
+    Transform: {
+      pos,
+      rot,
+      scale: defaultScale()
+    },
+    Velocity: {
+      vel: createVector(0, 0, 0)
+    },
+    Animation: {
+      currentFrame: npcDef.frame || 0, // Initial/idle frame
+      frameTime: 0,
+      framesPerSecond: 6, // Animation speed when moving
+      totalFrames: 3,
+      idleFrame: npcDef.frame || 0,
+      walkFrames: [1, 2]
+    }
+  };
+
+  // Add Script component if script is defined
+  if (npcDef.script) {
+    components.Script = {
+      commands: JSON.parse(JSON.stringify(npcDef.script.commands)), // Deep copy
+      loop: npcDef.script.loop || false,
+      paused: false, // Script can be paused during interaction
+      _originalCommands: JSON.parse(JSON.stringify(npcDef.script.commands)) // Save for looping
+    };
+  }
+
+  // Add Interaction component if interaction is enabled
+  if (npcDef.interaction !== false) {
+    components.Interaction = {
+      range: INTERACTION_CONFIG?.range || 4.0,
+      requireFacing: npcDef.requireFacing !== false,
+      facingDot: npcDef.facingDot || INTERACTION_CONFIG?.facingDot || 0.3,
+      inRange: false,
+      isClosest: false
+    };
+  }
+
+  // Add Dialogue component if dialogue is defined
+  if (npcDef.dialogue) {
+    components.Dialogue = {
+      conversations: npcDef.dialogue.conversations || [],
+      currentConversation: null,
+      currentLine: 0
+    };
+  }
+
+  return createEntity(world, components);
+};
+
 // ========== Main Loader ==========
 
 const loadLevel = async (levelPath, world, collisionWorld) => {
@@ -461,6 +527,14 @@ const loadLevel = async (levelPath, world, collisionWorld) => {
         processSculpture(sculpture, world, collisionWorld, levelDir)
       )
     );
+  }
+
+  // Create NPCs
+  if (levelData.npcs && levelData.npcs.length > 0) {
+    levelData.npcs.forEach(npcDef => {
+      createNPC(npcDef, world);
+      console.log(`Created NPC: ${npcDef.name || npcDef.id} at [${npcDef.pos}]`);
+    });
   }
 
   // Get player spawn from player config (with backward compatibility)

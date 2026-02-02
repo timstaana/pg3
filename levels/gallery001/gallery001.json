@@ -10,6 +10,83 @@
       }
     ]
   },
+  "npcs": [
+    {
+      "name": "Guard",
+      "pos": [-3.0, 3.0, 0.0],
+      "yaw": 90.0,
+      "avatar": "default",
+      "frame": 0,
+      "interaction": true,
+      "script": {
+        "loop": true,
+        "commands": [
+          { "type": "moveTo", "target": [3.0, 1.0, 0.0], "speed": 2.0, "fly": true },
+          { "type": "wait", "duration": 1.0 },
+          { "type": "moveTo", "target": [-3.0, 1.0, 0.0], "speed": 2.0, "fly": true },
+          { "type": "wait", "duration": 1.0 }
+        ]
+      },
+      "dialogue": {
+        "conversations": [
+          {
+            "name": "greeting",
+            "lines": [
+              {
+                "speaker": "Guard",
+                "text": "Welcome to the gallery! I'm patrolling this area to keep everything safe."
+              },
+              {
+                "speaker": "Guard",
+                "text": "Feel free to look around. We have some wonderful art on display today."
+              },
+              {
+                "speaker": "Guard 2",
+                "text": "Hey! Don't bother the visitors! They can explore on their own."
+              },
+              {
+                "speaker": "Guard",
+                "text": "Sorry about that. My colleague over there can be a bit grumpy sometimes."
+              },
+              {
+                "speaker": "Guard 2",
+                "text": "I'm not grumpy, I'm just focused on my work!"
+              },
+              {
+                "speaker": "Guard",
+                "text": "Right... Anyway, enjoy your visit! We have paintings, sculptures, and more to see."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Guard 2",
+      "pos": [3.0, 3.0, -3.0],
+      "yaw": 270.0,
+      "avatar": "default",
+      "frame": 1,
+      "interaction": true,
+      "dialogue": {
+        "conversations": [
+          {
+            "name": "greeting",
+            "lines": [
+              {
+                "speaker": "Guard 2",
+                "text": "What do you want? Can't you see I'm working here?"
+              },
+              {
+                "speaker": "Guard 2",
+                "text": "Fine, fine. If you have questions, talk to that other guard over there."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
   "collision": {
     "boxes": [
       {

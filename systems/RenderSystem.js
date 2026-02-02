@@ -69,21 +69,20 @@ const renderMeshCollider = (col) => {
   pop();
 };
 
-const renderPlayer = (player) => {
-  const { Transform: { pos, rot }, Animation: anim, Player: playerData } = player;
-
-  // Calculate camera direction relative to player
+// Generic character sprite rendering (used by player and NPCs)
+const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex, isInteractable = false) => {
+  // Calculate camera direction relative to character
   const camPos = cameraRig.camPosWorld;
   const toCamera = p5.Vector.sub(camPos, pos);
   toCamera.y = 0; // Only consider horizontal angle
   toCamera.normalize();
 
-  // Player forward direction based on yaw
-  const playerYawRad = radians(-rot.y);
-  const playerForward = createVector(sin(playerYawRad), 0, cos(playerYawRad));
+  // Character forward direction based on yaw
+  const yawRad = radians(-rot.y);
+  const forward = createVector(sin(yawRad), 0, cos(yawRad));
 
-  // Determine if camera is in front or behind player
-  const dot = toCamera.dot(playerForward);
+  // Determine if camera is in front or behind character
+  const dot = toCamera.dot(forward);
   const useFrontTexture = dot > 0;
 
   // Calculate UV coordinates for current frame
@@ -97,17 +96,23 @@ const renderPlayer = (player) => {
     [uMin, uMax] = [uMax, uMin];
   }
 
+  // Calculate glow effect for interactable NPCs
+  const pulseSpeed = 1.2;
+  const pulseAmount = 0.2;
+  const pulse = isInteractable ? Math.sin(millis() * 0.001 * pulseSpeed * 2 * Math.PI) * pulseAmount : 0;
+  const glowStrength = isInteractable ? 0.4 + pulse : 0;
+
   push();
   translate(pos.x, pos.y, pos.z);
 
-  // Rotate sprite to face player's direction
+  // Rotate sprite to face character's direction
   rotateY(radians(-rot.y));
 
-  // Player size: 1 width x 1.5 height
+  // Character size: 1 width x 1.5 height
   // Sprite originates from bottom of collision sphere (feet at ground)
   const halfWidth = 0.5;
-  const playerHeight = 1.5;
-  const spriteBottom = -playerData.radius;
+  const characterHeight = 1.5;
+  const spriteBottom = -radius;
 
   // Make sprite unaffected by scene lighting - render at full brightness
   noLights();
@@ -115,22 +120,22 @@ const renderPlayer = (player) => {
   noStroke();
   fill(255); // Render texture at full brightness
 
-  const playerTexture = useFrontTexture ? PLAYER_FRONT_TEX : PLAYER_BACK_TEX;
-  texture(playerTexture);
+  const charTexture = useFrontTexture ? frontTex : backTex;
+  texture(charTexture);
   textureMode(NORMAL);
 
   // Apply alpha cutout shader if available
   if (alphaCutoutShader) {
     shader(alphaCutoutShader);
-    alphaCutoutShader.setUniform('uTexture', playerTexture);
+    alphaCutoutShader.setUniform('uTexture', charTexture);
     alphaCutoutShader.setUniform('uAlphaCutoff', 0.1); // Discard pixels with alpha < 0.1
   }
 
   beginShape();
   vertex(-halfWidth, spriteBottom, 0, uMin, 1);
   vertex(halfWidth, spriteBottom, 0, uMax, 1);
-  vertex(halfWidth, spriteBottom + playerHeight, 0, uMax, 0);
-  vertex(-halfWidth, spriteBottom + playerHeight, 0, uMin, 0);
+  vertex(halfWidth, spriteBottom + characterHeight, 0, uMax, 0);
+  vertex(-halfWidth, spriteBottom + characterHeight, 0, uMin, 0);
   endShape(CLOSE);
 
   // Reset shader
@@ -138,11 +143,45 @@ const renderPlayer = (player) => {
     resetShader();
   }
 
+  // Add glowing overlay if interactable
+  if (isInteractable) {
+    blendMode(ADD);
+    const glowAlpha = map(glowStrength, 0.2, 0.6, 30, 80);
+    fill(255, 220, 100, glowAlpha); // Warm yellow glow
+
+    // Render without texture for solid color overlay
+    beginShape();
+    vertex(-halfWidth, spriteBottom, 0);
+    vertex(halfWidth, spriteBottom, 0);
+    vertex(halfWidth, spriteBottom + characterHeight, 0);
+    vertex(-halfWidth, spriteBottom + characterHeight, 0);
+    endShape(CLOSE);
+    blendMode(BLEND); // Reset blend mode
+  }
+
   // Restore scene lighting for other objects
   ambientLight(100);
   directionalLight(200, 200, 200, 0, 1, 0);
 
   pop();
+};
+
+const renderPlayer = (player) => {
+  const { Transform: { pos, rot }, Animation: anim, Player: playerData } = player;
+  renderCharacterSprite(pos, rot, anim, playerData.radius, PLAYER_FRONT_TEX, PLAYER_BACK_TEX);
+};
+
+const renderNPC = (npc) => {
+  const { Transform: { pos, rot }, Animation: anim, NPC: npcData } = npc;
+
+  // Get textures for this NPC's avatar
+  const avatarTextures = NPC_AVATAR_TEXTURES[npcData.avatarId] || NPC_AVATAR_TEXTURES['default'];
+  if (!avatarTextures) return; // Skip if textures not loaded
+
+  // Check if NPC is interactable (highlighted when player is nearby)
+  const isInteractable = npc.Interaction && npc.Interaction.isClosest;
+
+  renderCharacterSprite(pos, rot, anim, npcData.radius, avatarTextures.front, avatarTextures.back, isInteractable);
 };
 
 const renderLabel = (label) => {
@@ -381,6 +420,9 @@ const RenderSystem = (world, dt) => {
 
   // Always render player (they're always in view)
   queryEntities(world, 'Player', 'Transform').forEach(renderPlayer);
+
+  // Render NPCs
+  queryEntities(world, 'NPC', 'Transform', 'Animation').forEach(renderNPC);
 
   // Debug: Draw ground normal (disabled for performance)
   // queryEntities(world, 'Player', 'Transform').forEach(renderNormalDebug);

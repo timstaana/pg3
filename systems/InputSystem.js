@@ -21,19 +21,27 @@ const InputSystem = (world, dt) => {
   const players = queryEntities(world, 'Player', 'Input', 'Transform');
   const lightbox = typeof getLightboxState === 'function' ? getLightboxState() : null;
   const inLightboxMode = lightbox && lightbox.active;
+  const dialogue = typeof getDialogueState === 'function' ? getDialogueState() : null;
+  const inDialogueMode = dialogue && dialogue.active;
 
   // Check if any key was pressed this frame
   const anyKeyPressed = Object.values(keysPressed).some(pressed => pressed);
 
+  // Handle dialogue mode input
+  if (inDialogueMode && dialogue.cooldown <= 0 && anyKeyPressed) {
+    if (typeof advanceDialogue === 'function') {
+      advanceDialogue();
+    }
+  }
   // Exit lightbox on any input after cooldown
-  if (inLightboxMode && lightbox.cooldown <= 0 && anyKeyPressed) {
+  else if (inLightboxMode && lightbox.cooldown <= 0 && anyKeyPressed) {
     if (typeof deactivateLightbox === 'function') {
       deactivateLightbox();
     }
   }
 
-  // Only process player input if NOT in lightbox mode
-  if (!inLightboxMode) {
+  // Only process player input if NOT in lightbox or dialogue mode
+  if (!inLightboxMode && !inDialogueMode) {
     players.forEach(player => {
       const { Input: input } = player;
 
@@ -55,14 +63,21 @@ const InputSystem = (world, dt) => {
       }
     });
 
-    // Handle Space to enter lightbox or jump
+    // Handle Space to enter dialogue, lightbox, or jump
     if (keysPressed[' ']) {
-      // Find closest interactable (painting or sculpture) and activate lightbox
+      // Find closest interactable
       const interactables = queryEntities(world, 'Interaction');
       const closest = interactables.find(e => e.Interaction.isClosest);
 
-      if (closest && typeof activateLightbox === 'function') {
-        activateLightbox(closest);
+      if (closest) {
+        // Check if it's an NPC with dialogue
+        if (closest.Dialogue && typeof activateDialogue === 'function') {
+          activateDialogue(closest);
+        }
+        // Otherwise activate lightbox (paintings/sculptures)
+        else if (typeof activateLightbox === 'function') {
+          activateLightbox(closest);
+        }
       } else {
         // No interactable nearby, allow jump
         players.forEach(player => {
@@ -73,7 +88,7 @@ const InputSystem = (world, dt) => {
       }
     }
   } else {
-    // In lightbox mode - disable all player controls
+    // In lightbox or dialogue mode - disable all player controls
     players.forEach(player => {
       if (player.Input) {
         player.Input.forward = 0;

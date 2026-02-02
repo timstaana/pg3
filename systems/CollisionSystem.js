@@ -133,4 +133,65 @@ const CollisionSystem = (world, collisionWorld, dt) => {
       if (!hadCollision) break;
     }
   });
+
+  // Handle NPC collision (simpler than player - just grounding and basic collision)
+  const npcs = queryEntities(world, 'NPC', 'Transform', 'Velocity');
+
+  npcs.forEach(npc => {
+    const { NPC: npcData, Transform: { pos }, Velocity: { vel } } = npc;
+    const { radius } = npcData;
+
+    npcData.grounded = false;
+
+    const candidates = queryTrianglesNearPlayer(
+      collisionWorld,
+      pos,
+      radius,
+      COLLISION_CONFIG,
+      vel
+    );
+
+    for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+      let bestGround = null;
+      let bestGroundY = -Infinity;
+      let hadCollision = false;
+
+      candidates.forEach(tri => {
+        // Backface culling for mesh colliders
+        if (!tri.isBox) {
+          const toNPC = p5.Vector.sub(pos, tri.a);
+          const isFrontFacing = toNPC.dot(tri.normal) > 0;
+          if (!isFrontFacing) return;
+        }
+
+        const groundCheckRadius = radius + GROUNDING_TOLERANCE;
+        const contact = sphereVsTriangle(pos, groundCheckRadius, tri);
+
+        if (!contact) return;
+
+        if (contact.depth > GROUNDING_TOLERANCE) {
+          hadCollision = true;
+          const pushDepth = contact.depth - GROUNDING_TOLERANCE;
+          pos.add(p5.Vector.mult(contact.normal, pushDepth));
+        }
+
+        // Track best ground contact
+        if (contact.normal.y >= MIN_GROUND_NY && contact.point.y > bestGroundY) {
+          bestGround = contact;
+          bestGroundY = contact.point.y;
+        } else {
+          // Project velocity off non-ground surfaces
+          projectVelocityOffSurface(vel, contact.normal);
+        }
+      });
+
+      if (bestGround) {
+        npcData.grounded = true;
+        npcData.groundNormal = bestGround.normal.copy();
+        projectVelocityOffSurface(vel, bestGround.normal);
+      }
+
+      if (!hadCollision) break;
+    }
+  });
 };

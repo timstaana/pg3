@@ -127,6 +127,10 @@ const CameraSystem = (world, collisionWorld) => {
   const lightbox = typeof getLightboxState === 'function' ? getLightboxState() : null;
   const lightboxBlend = lightbox ? lightbox.blend : 0;
 
+  // Blend with dialogue camera if active
+  const dialogue = typeof getDialogueState === 'function' ? getDialogueState() : null;
+  const dialogueActive = dialogue && dialogue.active;
+
   let targetEyeX = finalX;
   let targetEyeY = finalY;
   let targetEyeZ = finalZ;
@@ -134,8 +138,31 @@ const CameraSystem = (world, collisionWorld) => {
   let targetCenterY = lookAtY;
   let targetCenterZ = lookAtZ;
 
-  // If lightbox is active, blend towards lightbox camera
-  if (lightboxBlend > 0 && lightbox.targetPos && lightbox.targetLookAt) {
+  // Prioritize dialogue camera over lightbox
+  if (dialogueActive && dialogue.focusPos) {
+    // Position camera in front of NPC, looking at NPC
+    const npcPos = dialogue.focusPos;
+    const dialogueDist = dialogue.focusDistance || 3.5;
+
+    // Get player-to-NPC direction to position camera between them
+    const toNpc = p5.Vector.sub(npcPos, playerPos);
+    toNpc.y = 0;
+    toNpc.normalize();
+
+    // Camera positioned slightly to the side and closer to player
+    const camOffset = p5.Vector.mult(toNpc, dialogueDist * 0.6);
+    const sideOffset = createVector(-toNpc.z, 0, toNpc.x);
+    sideOffset.mult(1.2); // Offset to side
+
+    targetEyeX = playerPos.x + camOffset.x + sideOffset.x;
+    targetEyeY = playerPos.y + 1.2; // Eye level
+    targetEyeZ = playerPos.z + camOffset.z + sideOffset.z;
+    targetCenterX = npcPos.x;
+    targetCenterY = npcPos.y;
+    targetCenterZ = npcPos.z;
+  }
+  // If lightbox is active (and dialogue is not), blend towards lightbox camera
+  else if (lightboxBlend > 0 && lightbox.targetPos && lightbox.targetLookAt) {
     targetEyeX = lerp(finalX, lightbox.targetPos.x, lightboxBlend);
     targetEyeY = lerp(finalY, lightbox.targetPos.y, lightboxBlend);
     targetEyeZ = lerp(finalZ, lightbox.targetPos.z, lightboxBlend);
@@ -150,7 +177,8 @@ const CameraSystem = (world, collisionWorld) => {
     cameraRig.center = { x: targetCenterX, y: targetCenterY, z: targetCenterZ };
     cameraRig.initialized = true;
   } else {
-    const smooth = lightboxBlend > 0.5 ? SMOOTH * 1.5 : SMOOTH; // Slower in lightbox mode
+    // Slower smoothing in dialogue or lightbox mode
+    const smooth = (dialogueActive || lightboxBlend > 0.5) ? SMOOTH * 1.5 : SMOOTH;
     cameraRig.eye.x = lerp(cameraRig.eye.x, targetEyeX, smooth);
     cameraRig.eye.y = lerp(cameraRig.eye.y, targetEyeY, smooth);
     cameraRig.eye.z = lerp(cameraRig.eye.z, targetEyeZ, smooth);

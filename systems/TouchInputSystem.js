@@ -147,6 +147,8 @@ const TouchInputSystem = (world, dt) => {
 
   const lightbox = typeof getLightboxState === 'function' ? getLightboxState() : null;
   const inLightboxMode = lightbox && lightbox.active;
+  const dialogue = typeof getDialogueState === 'function' ? getDialogueState() : null;
+  const inDialogueMode = dialogue && dialogue.active;
 
   const players = queryEntities(world, 'Player', 'Input');
 
@@ -158,15 +160,25 @@ const TouchInputSystem = (world, dt) => {
     input.turn = 0;
     input.jump = false;
 
-    // Map joystick to tank controls
+    // Map joystick to tank controls only if not in dialogue or lightbox mode
     // X axis = turn, Y axis = forward/back
-    if (touchState.active) {
+    if (touchState.active && !inDialogueMode && !inLightboxMode) {
       input.turn = touchState.stick.x;
       input.forward = -touchState.stick.y; // Invert Y (up = forward)
     }
 
     // Handle tap input
     if (touchState.tapRequested && touchState.tapPosition) {
+      // Advance dialogue if in dialogue mode
+      if (inDialogueMode && dialogue.cooldown <= 0) {
+        if (typeof advanceDialogue === 'function') {
+          advanceDialogue();
+        }
+        touchState.tapRequested = false;
+        touchState.tapPosition = null;
+        return;
+      }
+
       // Exit lightbox if in lightbox mode
       if (inLightboxMode && lightbox.cooldown <= 0) {
         if (typeof deactivateLightbox === 'function') {
@@ -185,8 +197,14 @@ const TouchInputSystem = (world, dt) => {
       for (const entity of interactables) {
         // If this entity is the closest interactable (highlighted with glow)
         if (entity.Interaction.isClosest) {
-          // Activate it!
-          if (typeof activateLightbox === 'function') {
+          // Check if it's an NPC with dialogue
+          if (entity.Dialogue && typeof activateDialogue === 'function') {
+            activateDialogue(entity);
+            hitInteractable = true;
+            break;
+          }
+          // Otherwise activate lightbox (paintings/sculptures)
+          else if (typeof activateLightbox === 'function') {
             activateLightbox(entity);
             hitInteractable = true;
             break;

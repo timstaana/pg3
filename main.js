@@ -29,6 +29,9 @@ let LIGHTBOX_CONFIG;
 let PLAYER_FRONT_TEX;
 let PLAYER_BACK_TEX;
 
+// NPC avatar textures (map of avatarId -> {front, back})
+let NPC_AVATAR_TEXTURES = {};
+
 // ========== Initialization ==========
 
 async function setup() {
@@ -91,6 +94,27 @@ async function setup() {
     loadImage(backSpritePath, resolve, reject);
   });
 
+  // Load NPC avatar textures (load all avatars defined in level)
+  if (playerConfig.avatars && playerConfig.avatars.length > 0) {
+    console.log(`Loading ${playerConfig.avatars.length} NPC avatar(s)...`);
+    for (const avatar of playerConfig.avatars) {
+      const frontPath = `${levelDir}/${avatar.front}`;
+      const backPath = `${levelDir}/${avatar.back}`;
+
+      NPC_AVATAR_TEXTURES[avatar.id] = {
+        front: await new Promise((resolve, reject) => loadImage(frontPath, resolve, reject)),
+        back: await new Promise((resolve, reject) => loadImage(backPath, resolve, reject))
+      };
+      console.log(`Loaded NPC avatar: ${avatar.id} (${avatar.name || 'unnamed'})`);
+    }
+  }
+
+  // Always add default avatar using player textures
+  NPC_AVATAR_TEXTURES['default'] = {
+    front: PLAYER_FRONT_TEX,
+    back: PLAYER_BACK_TEX
+  };
+
   // Load alpha cutout shader (with error handling for p5.js v2)
   // p5.js v2 returns Promises from loadShader, so we need to await them
   try {
@@ -128,12 +152,14 @@ const runSystems = (dt) => {
   TouchInputSystem(world, dt);
   InputSystem(world, dt);
   PlayerMotionSystem(world, dt);
+  ScriptSystem(world, dt); // Process entity scripts
   GravitySystem(world, dt);
   IntegrateSystem(world, dt);
   CollisionSystem(world, collisionWorld, dt);
   RespawnSystem(world, dt);
   AnimationSystem(world, dt);
   InteractionSystem(world);
+  DialogueSystem(world, dt); // NPC dialogue and interactions
   LightboxSystem(world, dt);
   CameraSystem(world, collisionWorld);
   RenderSystem(world, dt);
