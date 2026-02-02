@@ -6,7 +6,7 @@
     "spawns": [
       {
         "pos": [0.0, 3.0, 8.0],
-        "yaw": 0.0
+        "yaw": 180.0
       }
     ]
   },
@@ -22,7 +22,7 @@
         "commands": [
           { "type": "moveTo", "target": [3.0, 1.0, 0.0], "speed": 2.0, "fly": false },
           { "type": "wait", "duration": 1.0 },
-          { "type": "moveTo", "target": [-3.0, 1.0, 0.0], "speed": 2.0, "fly": false },
+          { "type": "moveTo", "target": [-6.0, 1.0, -6.0], "speed": 2.0, "fly": false },
           { "type": "wait", "duration": 1.0 }
         ]
       },
@@ -166,8 +166,7 @@
         "scale": 1,
         "width": 3,
         "height": 3,
-        "lightboxDistance": 4,
-        "title": "Abstract Expression",
+        "title": "Abstract Expression (2026)",
         "description": "This vibrant piece explores the interplay of color and emotion through bold geometric patterns. Created using digital techniques, it represents the chaos and harmony of modern life.",
         "url": "https://example.com/artwork-details"
       },
@@ -178,7 +177,7 @@
         "scale": 1,
         "width": 2.5,
         "height": 2.5,
-        "title": "Animated Dreams",
+        "title": "Animated Dreams (2026)",
         "description": "An exploration of movement and time through digital animation."
       },
       {

@@ -256,7 +256,7 @@ const runSystems = (dt) => {
   LightboxSystem(world, dt);
   AssetStreamingSystem(world, dt); // Progressive asset loading
   CameraSystem(world, collisionWorld);
-  RenderSystem(world, dt);
+  RenderSystem(world, collisionWorld, dt);
   CanvasOverlaySystem(world, dt);
   TouchJoystickRenderSystem(world, dt, getTouchState());
 };

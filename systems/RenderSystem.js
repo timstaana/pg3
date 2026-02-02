@@ -478,7 +478,111 @@ const renderNormalDebug = (player) => {
   }
 };
 
-const RenderSystem = (world, dt) => {
+// ========== Shadow Rendering ==========
+
+// Raycast downward to find ground intersection
+const raycastGround = (origin, collisionWorld, maxDistance = 10) => {
+  const rayDir = createVector(0, -1, 0); // Down
+  let closestHit = null;
+  let closestDist = maxDistance;
+
+  // Check all collision triangles
+  collisionWorld.tris.forEach(tri => {
+    const v0 = tri.a;
+    const v1 = tri.b;
+    const v2 = tri.c;
+
+    // Skip if triangle is missing vertices
+    if (!v0 || !v1 || !v2) return;
+
+    // Ray-triangle intersection using Möller-Trumbore algorithm
+    const edge1 = p5.Vector.sub(v1, v0);
+    const edge2 = p5.Vector.sub(v2, v0);
+    const h = p5.Vector.cross(rayDir, edge2);
+    const a = p5.Vector.dot(edge1, h);
+
+    // Ray parallel to triangle
+    if (Math.abs(a) < 0.0001) return;
+
+    const f = 1.0 / a;
+    const s = p5.Vector.sub(origin, v0);
+    const u = f * p5.Vector.dot(s, h);
+
+    if (u < 0.0 || u > 1.0) return;
+
+    const q = p5.Vector.cross(s, edge1);
+    const v = f * p5.Vector.dot(rayDir, q);
+
+    if (v < 0.0 || u + v > 1.0) return;
+
+    const t = f * p5.Vector.dot(edge2, q);
+
+    // Check if intersection is in front of ray and closer than previous hits
+    if (t > 0.0001 && t < closestDist) {
+      closestDist = t;
+      const hitPoint = p5.Vector.add(origin, p5.Vector.mult(rayDir, t));
+      closestHit = {
+        point: hitPoint,
+        normal: tri.normal,
+        distance: t
+      };
+    }
+  });
+
+  return closestHit;
+};
+
+// Render shadow circle at ground position
+const renderShadow = (position, collisionWorld) => {
+  push();
+
+  // Raycast downward to find ground
+  const hit = raycastGround(position, collisionWorld, 10);
+
+  let groundY;
+  let distanceFromGround;
+
+  if (hit) {
+    // Use raycasted ground position
+    groundY = hit.point.y;
+    distanceFromGround = hit.distance;
+  } else {
+    // Fallback to fixed ground level if raycast misses
+    groundY = 0.5;
+    distanceFromGround = Math.abs(position.y - groundY);
+  }
+
+  // Only render shadow if character is reasonably close to ground
+  if (distanceFromGround < 10) {
+    translate(position.x, groundY + 0.05, position.z);
+
+    // Rotate shadow to align with surface normal
+    if (hit && hit.normal) {
+      const normal = hit.normal;
+      // Compute rotation angles from normal vector
+      const angleX = atan2(normal.z, normal.y);
+      const angleZ = atan2(normal.x, normal.y);
+
+      rotateZ(-angleZ);
+      rotateX(HALF_PI - -angleX);
+    } else {
+      // Fallback to horizontal for flat ground
+      rotateX(HALF_PI);
+    }
+
+    // Shadow appearance - larger and visible
+    const shadowSize = 0.8;
+    const alpha = Math.max(0, .3 - distanceFromGround / 8);
+
+    noStroke();
+    fill(0, 0, 0, alpha * 255);
+    circle(0, 0, shadowSize);
+  }
+
+  pop();
+};
+
+const RenderSystem = (world, collisionWorld, dt) => {
   background(20);
 
   push();
@@ -514,6 +618,15 @@ const RenderSystem = (world, dt) => {
 
   // Disable backface culling for sprites
   gl.disable(gl.CULL_FACE);
+
+  // Render shadows for player and NPCs
+  queryEntities(world, 'Player', 'Transform').forEach(entity => {
+    renderShadow(entity.Transform.pos, collisionWorld);
+  });
+
+  queryEntities(world, 'NPC', 'Transform').forEach(entity => {
+    renderShadow(entity.Transform.pos, collisionWorld);
+  });
 
   // Always render player (they're always in view)
   queryEntities(world, 'Player', 'Transform').forEach(renderPlayer);
