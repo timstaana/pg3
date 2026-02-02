@@ -3,11 +3,11 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files explicitly
+COPY package.json package-lock.json ./
 
 # Install dependencies (production only)
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Production stage
 FROM node:18-alpine
