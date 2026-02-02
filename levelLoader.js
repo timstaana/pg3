@@ -510,7 +510,11 @@ const createPaintingStub = (painting, world) => {
       assetState: 'NOT_LOADED',   // Streaming state
       assetSrc: painting.src,     // Store source path
       loadPriority: 0,
-      lastSeenFrame: 0
+      lastSeenFrame: 0,
+      // Artwork info (optional)
+      title: painting.title || null,
+      description: painting.description || null,
+      url: painting.url || null
     },
     Interaction: {
       range: INTERACTION_CONFIG?.range || 4.0,
@@ -562,7 +566,11 @@ const createSculptureStub = (sculpture, world, collisionWorld) => {
       textureSrc: sculpture.texture || null,
       targetSize: targetSize,               // Store for scaling when loaded
       loadPriority: 0,
-      lastSeenFrame: 0
+      lastSeenFrame: 0,
+      // Artwork info (optional)
+      title: sculpture.title || null,
+      description: sculpture.description || null,
+      url: sculpture.url || null
     },
     ...(sculpture.interaction !== false && {
       Interaction: {

@@ -166,7 +166,10 @@
         "scale": 1,
         "width": 3,
         "height": 3,
-        "lightboxDistance": 4
+        "lightboxDistance": 4,
+        "title": "Abstract Expression",
+        "description": "This vibrant piece explores the interplay of color and emotion through bold geometric patterns. Created using digital techniques, it represents the chaos and harmony of modern life.",
+        "url": "https://example.com/artwork-details"
       },
       {
         "src": "art_01.gif",
@@ -174,7 +177,9 @@
         "rot": [0, 0, 0],
         "scale": 1,
         "width": 2.5,
-        "height": 2.5
+        "height": 2.5,
+        "title": "Animated Dreams",
+        "description": "An exploration of movement and time through digital animation."
       },
       {
         "src": "dance.gif",
@@ -194,7 +199,10 @@
         "size": [2, 2, 2],
         "collision": false,
         "interaction": true,
-        "lightboxDistance": 3.5
+        "lightboxDistance": 3.5,
+        "title": "Digital Form",
+        "description": "A 3D sculpture demonstrating the fusion of traditional artistic concepts with modern digital fabrication techniques.",
+        "url": "https://example.com/sculpture-info"
       }
     ]
   }

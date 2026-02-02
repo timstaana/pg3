@@ -52,9 +52,79 @@ const STREAMING_CONFIG = {
   unloadFrameThreshold: 300     // Unload after ~5 seconds unseen (at 60fps)
 };
 
+// ========== Loading Screen ==========
+
+let loadingScreen = null;
+let loadingFrame = 0;
+
+const createLoadingScreen = () => {
+  loadingScreen = document.createElement('div');
+  loadingScreen.id = 'loading-screen';
+  Object.assign(loadingScreen.style, {
+    position: 'fixed',
+    top: '0',
+    left: '0',
+    width: '100vw',
+    height: '100vh',
+    backgroundColor: '#000',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: '9999',
+    fontFamily: 'monospace',
+    color: '#fff',
+    fontSize: '20px'
+  });
+
+  const loadingText = document.createElement('div');
+  loadingText.id = 'loading-text';
+  loadingText.textContent = 'Loading...';
+
+  const loadingBar = document.createElement('div');
+  loadingBar.id = 'loading-bar';
+  loadingBar.style.marginTop = '20px';
+  loadingBar.textContent = '[          ]';
+
+  loadingScreen.appendChild(loadingText);
+  loadingScreen.appendChild(loadingBar);
+  document.body.appendChild(loadingScreen);
+
+  // Animate loading bar
+  const animateLoader = () => {
+    if (!loadingScreen || !loadingScreen.parentElement) return;
+
+    loadingFrame++;
+    const frames = ['[/         ]', '[ -        ]', '[  \\       ]', '[   |      ]',
+                    '[    /     ]', '[     -    ]', '[      \\   ]', '[       |  ]',
+                    '[        / ]', '[         -]', '[        \\ ]', '[       |  ]'];
+    const bar = document.getElementById('loading-bar');
+    if (bar) {
+      bar.textContent = frames[loadingFrame % frames.length];
+    }
+    setTimeout(animateLoader, 100);
+  };
+  animateLoader();
+};
+
+const removeLoadingScreen = () => {
+  if (loadingScreen && loadingScreen.parentElement) {
+    loadingScreen.style.opacity = '0';
+    loadingScreen.style.transition = 'opacity 0.5s';
+    setTimeout(() => {
+      if (loadingScreen && loadingScreen.parentElement) {
+        document.body.removeChild(loadingScreen);
+        loadingScreen = null;
+      }
+    }, 500);
+  }
+};
+
 // ========== Initialization ==========
 
 async function setup() {
+  createLoadingScreen();
+
   createCanvas(windowWidth, windowHeight, WEBGL);
 
   // Load configuration
@@ -164,6 +234,9 @@ async function setup() {
       padding: 10
     }
   });
+
+  // Remove loading screen
+  removeLoadingScreen();
 }
 
 // ========== Game Loop ==========

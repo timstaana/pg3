@@ -92,14 +92,37 @@ const deactivateDialogue = () => {
 
   const entity = dialogueState.targetEntity;
 
-  // Don't resume script here - let the interaction range logic handle it
-  // Just clear the dialogue-specific paused state
-  if (entity && entity.Script) {
-    // Script will be resumed by interaction range check if player is still nearby
-    // or by leaving range check if player moved away
-    entity.Script.paused = false;
-    entity.Script._pausedForInteraction = false;
+  // Get all NPCs that spoke in this conversation
+  const speakerNames = new Set();
+  if (dialogueState.conversation && dialogueState.conversation.lines) {
+    dialogueState.conversation.lines.forEach(line => {
+      if (line.speaker) {
+        speakerNames.add(line.speaker);
+      }
+    });
   }
+
+  // Restore original rotation and set skip flag for all speaking NPCs
+  speakerNames.forEach(speakerName => {
+    const speakerNPC = findNPCByName(world, speakerName);
+    if (speakerNPC) {
+      // Set target rotation for smooth rotation back to original
+      if (speakerNPC.Transform && speakerNPC.NPC && speakerNPC.NPC.originalYaw !== undefined) {
+        speakerNPC.NPC._targetRotation = speakerNPC.NPC.originalYaw;
+      }
+
+      // Prevent from facing player again until player leaves range
+      if (speakerNPC.NPC) {
+        speakerNPC.NPC._skipFacePlayerUntilLeaveRange = true;
+      }
+
+      // Clear dialogue paused state
+      if (speakerNPC.Script) {
+        speakerNPC.Script.paused = false;
+        speakerNPC.Script._pausedForInteraction = false;
+      }
+    }
+  });
 
   dialogueState.active = false;
   dialogueState.targetEntity = null;
@@ -159,49 +182,93 @@ const DialogueSystem = (world, dt) => {
 
       // If this NPC is the closest interactable, pause and face player
       if (interaction.isClosest && interaction.inRange) {
-        // Pause script and stop movement (only once)
-        if (npc.Script && !npc.Script.paused) {
-          npc.Script.paused = true;
-          npc.Script._pausedForInteraction = true;
-          // Clear velocity to stop NPC movement
-          if (npc.Velocity) {
-            npc.Velocity.vel.set(0, 0, 0);
+        // Skip face player behavior if dialogue just ended (until player leaves range)
+        if (npc.NPC && npc.NPC._skipFacePlayerUntilLeaveRange) {
+          // Keep script paused but don't rotate to face player
+          if (npc.Script && !npc.Script.paused) {
+            npc.Script.paused = true;
+            npc.Script._pausedForInteraction = true;
+            if (npc.Velocity) {
+              npc.Velocity.vel.set(0, 0, 0);
+            }
           }
-        }
+        } else {
+          // Normal behavior: pause script and face player
+          // Pause script and stop movement (only once)
+          if (npc.Script && !npc.Script.paused) {
+            npc.Script.paused = true;
+            npc.Script._pausedForInteraction = true;
+            // Clear velocity to stop NPC movement
+            if (npc.Velocity) {
+              npc.Velocity.vel.set(0, 0, 0);
+            }
+          }
 
-        // Smoothly rotate to face player
-        if (npc.Transform) {
-          const npcPos = npc.Transform.pos;
-          const playerPos = player.Transform.pos;
-          const dx = playerPos.x - npcPos.x;
-          const dz = playerPos.z - npcPos.z;
+          // Smoothly rotate to face player
+          if (npc.Transform) {
+            const npcPos = npc.Transform.pos;
+            const playerPos = player.Transform.pos;
+            const dx = playerPos.x - npcPos.x;
+            const dz = playerPos.z - npcPos.z;
 
-          const targetAngle = Math.atan2(dx, dz);
-          const targetYaw = -degrees(targetAngle);
+            const targetAngle = Math.atan2(dx, dz);
+            const targetYaw = -degrees(targetAngle);
 
-          let currentYaw = npc.Transform.rot.y;
-          let diff = targetYaw - currentYaw;
+            let currentYaw = npc.Transform.rot.y;
+            let diff = targetYaw - currentYaw;
 
-          // Normalize angle difference
-          if (diff > 180) diff -= 360;
-          else if (diff < -180) diff += 360;
+            // Normalize angle difference
+            if (diff > 180) diff -= 360;
+            else if (diff < -180) diff += 360;
 
-          const rotSpeed = 360;
-          const step = rotSpeed * dt;
+            const rotSpeed = 360;
+            const step = rotSpeed * dt;
 
-          if (Math.abs(diff) < step) {
-            npc.Transform.rot.y = targetYaw;
-          } else {
-            npc.Transform.rot.y += Math.sign(diff) * step;
+            if (Math.abs(diff) < step) {
+              npc.Transform.rot.y = targetYaw;
+            } else {
+              npc.Transform.rot.y += Math.sign(diff) * step;
+            }
           }
         }
       }
-      // If player left range, resume script
+      // If player left range, resume script and clear flag
       else if (npc.Script && npc.Script._pausedForInteraction) {
         npc.Script.paused = false;
         npc.Script._pausedForInteraction = false;
+        // Clear the skip flag when player leaves range
+        if (npc.NPC && npc.NPC._skipFacePlayerUntilLeaveRange) {
+          npc.NPC._skipFacePlayerUntilLeaveRange = false;
+        }
+      }
+      // For NPCs without scripts, still clear the skip flag when player leaves
+      else if (!interaction.inRange && npc.NPC && npc.NPC._skipFacePlayerUntilLeaveRange) {
+        npc.NPC._skipFacePlayerUntilLeaveRange = false;
       }
     }
+
+    // Smoothly rotate NPCs back to their target rotation (after dialogue ends)
+    queryEntities(world, 'NPC', 'Transform').forEach(npc => {
+      if (npc.NPC._targetRotation !== undefined && npc.Transform) {
+        const targetYaw = npc.NPC._targetRotation;
+        let currentYaw = npc.Transform.rot.y;
+        let diff = targetYaw - currentYaw;
+
+        // Normalize angle difference
+        if (diff > 180) diff -= 360;
+        else if (diff < -180) diff += 360;
+
+        const rotSpeed = 360; // degrees per second
+        const step = rotSpeed * dt;
+
+        if (Math.abs(diff) < step) {
+          npc.Transform.rot.y = targetYaw;
+          delete npc.NPC._targetRotation; // Clear target when reached
+        } else {
+          npc.Transform.rot.y += Math.sign(diff) * step;
+        }
+      }
+    });
 
     return; // Don't process dialogue mode
   }
