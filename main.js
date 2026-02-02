@@ -269,8 +269,11 @@ async function setup() {
     if (!serverUrl) {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const hostname = window.location.hostname;
-      const port = window.location.port || '8080';
-      serverUrl = `${protocol}//${hostname}:${port}`;
+      const port = window.location.port;
+
+      // Only add port if explicitly set (for local dev like localhost:8080)
+      // On Fly.io, no port is needed (uses standard HTTPS/WSS ports)
+      serverUrl = port ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`;
       console.log(`Auto-detected server URL: ${serverUrl}`);
     }
 
