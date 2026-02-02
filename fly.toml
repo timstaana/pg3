@@ -7,14 +7,11 @@ app = 'playground2'
 primary_region = 'syd'
 
 [build]
-<<<<<<< HEAD
-=======
   dockerfile = "Dockerfile"
 
 [env]
   PORT = "8080"
   NODE_ENV = "production"
->>>>>>> 816bc07 (deploy fix)
 
 [http_service]
   internal_port = 8080
