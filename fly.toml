@@ -1,21 +1,29 @@
-# fly.toml - Fly.io deployment configuration
+# fly.toml - Fly.io deployment configuration for pg3
 
-app = "pg3-multiplayer"
-primary_region = "ord" # Change to your preferred region (e.g., "lax", "ewr", "fra")
+app = "pg3-gallery"
+primary_region = "syd" # Change to your preferred region (e.g., "lax", "ewr", "fra", "sin")
 
 [build]
   dockerfile = "Dockerfile"
 
 [env]
   PORT = "3000"
+  NODE_ENV = "production"
 
 [http_service]
   internal_port = 3000
   force_https = true
-  auto_stop_machines = false # Keep running for real-time multiplayer
-  auto_start_machines = true
-  min_machines_running = 1
+  auto_stop_machines = true # Stop when inactive to save costs
+  auto_start_machines = true # Auto-start when users connect
+  min_machines_running = 0 # Allow full shutdown when idle
 
+  # Connection limits for WebSocket support
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 250
+    soft_limit = 200
+
+  # Health check
   [[http_service.checks]]
     grace_period = "5s"
     interval = "30s"
@@ -23,13 +31,16 @@ primary_region = "ord" # Change to your preferred region (e.g., "lax", "ewr", "f
     timeout = "5s"
     path = "/health"
 
-# VM resources - adjust based on your needs
-[[vm]]
+    [http_service.checks.headers]
+      Content-Type = "application/json"
+
+# VM resources - optimized for WebSocket multiplayer
+[vm]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 256
+  memory_mb = 512  # Increased for better WebSocket handling
 
-# Scaling configuration for multiplayer
-[metrics]
-  port = 9091
-  path = "/metrics"
+# Restart policy
+[restart]
+  policy = "on-failure"
+  max_retries = 3
