@@ -4,6 +4,12 @@
 const keys = {};
 const keysPressed = {}; // Track key press events (not hold)
 
+// Mouse position for inspection mode (normalized -1 to 1 from screen center)
+const mouseState = {
+  x: 0, // Horizontal offset from center (-1 = left edge, 1 = right edge)
+  y: 0  // Vertical offset from center (-1 = top edge, 1 = bottom edge)
+};
+
 const setupInputListeners = () => {
   window.addEventListener('keydown', e => {
     const key = e.key.toLowerCase();
@@ -15,7 +21,20 @@ const setupInputListeners = () => {
   window.addEventListener('keyup', e => {
     keys[e.key.toLowerCase()] = false;
   });
+
+  // Track mouse movement for inspection mode
+  window.addEventListener('mousemove', e => {
+    const canvasWidth = typeof width !== 'undefined' ? width : windowWidth;
+    const canvasHeight = typeof height !== 'undefined' ? height : windowHeight;
+
+    // Normalize to -1 to 1 range from screen center
+    mouseState.x = (e.clientX / canvasWidth) * 2 - 1;
+    mouseState.y = (e.clientY / canvasHeight) * 2 - 1;
+  });
 };
+
+// Make mouse state available globally
+const getMouseState = () => mouseState;
 
 const InputSystem = (world, dt) => {
   const players = queryEntities(world, 'Player', 'Input', 'Transform');

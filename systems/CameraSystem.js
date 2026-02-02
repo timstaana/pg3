@@ -160,9 +160,22 @@ const CameraSystem = (world, collisionWorld) => {
     targetEyeX = playerPos.x + camOffset.x + sideOffset.x;
     targetEyeY = playerPos.y + 1.6; // Higher eye level to account for dialogue box
     targetEyeZ = playerPos.z + camOffset.z + sideOffset.z;
-    targetCenterX = npcPos.x;
-    targetCenterY = npcPos.y - 0.3; // Look lower to position NPC higher in frame, above dialogue box
-    targetCenterZ = npcPos.z;
+
+    // Look at NPC with inspection offset
+    const lookAtPos = npcPos.copy();
+    lookAtPos.y -= 0.3; // Look lower to position NPC higher in frame
+
+    // Apply inspection offset from lightbox state
+    if (lightbox && lightbox.inspectionOffset) {
+      const right = createVector(-toNpc.z, 0, toNpc.x);
+      const up = createVector(0, 1, 0);
+      lookAtPos.add(p5.Vector.mult(right, lightbox.inspectionOffset.x));
+      lookAtPos.add(p5.Vector.mult(up, -lightbox.inspectionOffset.y));
+    }
+
+    targetCenterX = lookAtPos.x;
+    targetCenterY = lookAtPos.y;
+    targetCenterZ = lookAtPos.z;
   }
   // If lightbox is active (and dialogue is not), blend towards lightbox camera
   else if (lightboxBlend > 0 && lightbox.targetPos && lightbox.targetLookAt) {

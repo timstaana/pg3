@@ -43,7 +43,10 @@
     "cooldownDuration": 0.5,
     "distance": 2,
     "paintingDistanceMultiplier": 1.2,
-    "sculptureDistanceMultiplier": 1.4
+    "sculptureDistanceMultiplier": 1.4,
+    "inspectionEnabled": true,
+    "inspectionRange": 0.5,
+    "inspectionSmoothing": 0.1
   },
   "multiplayer": {
     "enabled": true,
