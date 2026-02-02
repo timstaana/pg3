@@ -32,6 +32,24 @@ let PLAYER_BACK_TEX;
 // NPC avatar textures (map of avatarId -> {front, back})
 let NPC_AVATAR_TEXTURES = {};
 
+// Asset streaming registry
+const ASSET_REGISTRY = {
+  loadQueue: [],              // Priority queue of {entity, assetType, priority}
+  activeLoads: new Set(),     // Currently loading URLs to prevent duplicates
+  maxConcurrentLoads: 4,      // Limit parallel fetches
+  frameCounter: 0,            // Global frame counter for LRU tracking
+  levelDir: ''                // Current level directory for asset paths
+};
+
+// Asset streaming configuration
+const STREAMING_CONFIG = {
+  maxRenderDistance: 50.0,      // Existing from CULLING_CONFIG
+  preloadDistance: 60.0,        // Load before entering view
+  unloadDistance: 100.0,        // Unload when far away
+  priorityUpdateInterval: 30,   // Frames between priority recalculation
+  unloadFrameThreshold: 300     // Unload after ~5 seconds unseen (at 60fps)
+};
+
 // ========== Initialization ==========
 
 async function setup() {
@@ -161,6 +179,7 @@ const runSystems = (dt) => {
   InteractionSystem(world);
   DialogueSystem(world, dt); // NPC dialogue and interactions
   LightboxSystem(world, dt);
+  AssetStreamingSystem(world, dt); // Progressive asset loading
   CameraSystem(world, collisionWorld);
   RenderSystem(world, dt);
   CanvasOverlaySystem(world, dt);

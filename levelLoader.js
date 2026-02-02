@@ -482,6 +482,115 @@ const createNPC = (npcDef, world) => {
 
 // ========== Main Loader ==========
 
+// ========== Streaming Entity Stubs ==========
+
+const createPaintingStub = (painting, world) => {
+  const pos = vecFromArray(painting.pos);
+  const rot = vecFromArray(painting.rot || [0, 0, 0]);
+  const scale = painting.scale || 1;
+
+  // Calculate placeholder dimensions from JSON or use defaults
+  const boundWidth = painting.width || 2;
+  const boundHeight = painting.height || 2;
+
+  createEntity(world, {
+    Transform: {
+      pos,
+      rot,
+      scale: defaultScale()
+    },
+    Painting: {
+      pos,
+      rot,
+      scale,
+      texture: null,              // Will be loaded by streaming system
+      sourceImage: null,          // Will be loaded by streaming system
+      width: boundWidth,          // Placeholder size
+      height: boundHeight,        // Placeholder size
+      assetState: 'NOT_LOADED',   // Streaming state
+      assetSrc: painting.src,     // Store source path
+      loadPriority: 0,
+      lastSeenFrame: 0
+    },
+    Interaction: {
+      range: INTERACTION_CONFIG?.range || 4.0,
+      requireFacing: INTERACTION_CONFIG?.requireFacing !== false,
+      facingDot: INTERACTION_CONFIG?.facingDot || 0.3,
+      inRange: false,
+      isClosest: false
+    },
+    Lightbox: {
+      padding: painting.lightboxPadding,
+      distance: painting.lightboxDistance,
+      yOffset: painting.yOffset || 0
+    }
+  });
+
+  console.log(`Created painting stub: ${painting.src} (streaming enabled)`);
+};
+
+const createSculptureStub = (sculpture, world, collisionWorld) => {
+  const pos = vecFromArray(sculpture.pos);
+  const rot = vecFromArray(sculpture.rot || [0, 0, 0]);
+  const scale = scaleFromValue(sculpture.scale || 1);
+
+  // Use target size from JSON or defaults
+  const targetSize = sculpture.size || [2, 2, 2];
+
+  // We don't know the actual model bounds yet, so use the target size as placeholder
+  const placeholderBounds = [targetSize[0], targetSize[1], targetSize[2]];
+
+  createEntity(world, {
+    Transform: {
+      pos,
+      rot,
+      scale
+    },
+    Sculpture: {
+      pos,
+      rot,
+      scale,
+      vertices: null,                       // Will be loaded by streaming system
+      uvs: null,
+      faces: null,
+      texture: null,
+      geometry: null,
+      bounds: placeholderBounds,            // Placeholder bounds
+      modelAssetState: 'NOT_LOADED',        // Streaming state
+      textureAssetState: sculpture.texture ? 'NOT_LOADED' : 'LOADED',
+      modelSrc: sculpture.model,            // Store source path
+      textureSrc: sculpture.texture || null,
+      targetSize: targetSize,               // Store for scaling when loaded
+      loadPriority: 0,
+      lastSeenFrame: 0
+    },
+    ...(sculpture.interaction !== false && {
+      Interaction: {
+        range: INTERACTION_CONFIG?.range || 4.0,
+        requireFacing: sculpture.requireFacing !== false,
+        facingDot: sculpture.facingDot || INTERACTION_CONFIG?.facingDot || 0.3,
+        inRange: false,
+        isClosest: false
+      },
+      Lightbox: {
+        padding: sculpture.lightboxPadding,
+        distance: sculpture.lightboxDistance,
+        yOffset: sculpture.yOffset || 0
+      }
+    })
+  });
+
+  // Add collision if specified
+  if (sculpture.collision !== false) {
+    const collisionSize = sculpture.collisionSize || targetSize;
+    addBoxCollider(collisionWorld, pos, rot, scale, collisionSize);
+  }
+
+  console.log(`Created sculpture stub: ${sculpture.model} (streaming enabled)`);
+};
+
+// ========== Main Level Loading ==========
+
 const loadLevel = async (levelPath, world, collisionWorld) => {
   const response = await fetch(levelPath);
   const levelData = await response.json();
@@ -491,6 +600,13 @@ const loadLevel = async (levelPath, world, collisionWorld) => {
   // Extract directory path from level path for relative asset loading
   const levelDir = levelPath.substring(0, levelPath.lastIndexOf('/'));
 
+  // Store level directory globally for asset streaming system
+  if (typeof ASSET_REGISTRY !== 'undefined') {
+    ASSET_REGISTRY.levelDir = levelDir;
+    console.log('Asset streaming enabled - level directory:', levelDir);
+  }
+
+  // Phase 1: Load essential collision geometry (required for physics)
   if (levelData.collision.boxes) {
     levelData.collision.boxes.forEach(box =>
       processBoxCollider(box, world, collisionWorld)
@@ -507,29 +623,29 @@ const loadLevel = async (levelPath, world, collisionWorld) => {
 
   console.log(`Collision world: ${collisionWorld.tris.length} triangles`);
 
+  // Phase 2: Create lightweight entities (labels are small, load immediately)
   if (levelData.visuals && levelData.visuals.labels) {
     levelData.visuals.labels.forEach(label =>
       processLabel(label, world)
     );
   }
 
+  // Phase 3: Create visual entity stubs (assets will stream in later)
   if (levelData.visuals && levelData.visuals.paintings) {
-    await Promise.all(
-      levelData.visuals.paintings.map(painting =>
-        processPainting(painting, world, levelDir)
-      )
+    levelData.visuals.paintings.forEach(painting =>
+      createPaintingStub(painting, world)
     );
+    console.log(`Created ${levelData.visuals.paintings.length} painting stub(s)`);
   }
 
   if (levelData.visuals && levelData.visuals.sculptures) {
-    await Promise.all(
-      levelData.visuals.sculptures.map(sculpture =>
-        processSculpture(sculpture, world, collisionWorld, levelDir)
-      )
+    levelData.visuals.sculptures.forEach(sculpture =>
+      createSculptureStub(sculpture, world, collisionWorld)
     );
+    console.log(`Created ${levelData.visuals.sculptures.length} sculpture stub(s)`);
   }
 
-  // Create NPCs
+  // Phase 4: Create NPCs (avatars loaded in setup, small)
   if (levelData.npcs && levelData.npcs.length > 0) {
     levelData.npcs.forEach(npcDef => {
       createNPC(npcDef, world);
@@ -537,10 +653,12 @@ const loadLevel = async (levelPath, world, collisionWorld) => {
     });
   }
 
-  // Get player spawn from player config (with backward compatibility)
+  // Phase 5: Create player
   const playerConfig = levelData.player || {};
   const spawns = playerConfig.spawns || levelData.playerSpawns || [{ pos: [0, 3, 0], yaw: 0 }];
   const player = createPlayer(spawns[0], world);
+
+  console.log('Level loaded - visual assets will stream as needed');
 
   return { levelData, player };
 };

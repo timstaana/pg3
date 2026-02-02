@@ -199,6 +199,99 @@ const renderLabel = (label) => {
   drawWorldText(label.text, label.pos, label.width, label.height, options);
 };
 
+// ========== Placeholder Rendering ==========
+
+const renderPaintingPlaceholder = (painting, showOutline) => {
+  push();
+  translate(painting.pos.x, painting.pos.y, painting.pos.z);
+  rotateY(radians(painting.rot.y));
+
+  const w = painting.width * painting.scale;
+  const h = painting.height * painting.scale;
+
+  noLights();
+  noStroke();
+
+  // Pulsing animation for loading state
+  const pulse = Math.sin(millis() * 0.002) * 0.2 + 0.8;
+
+  // Different colors based on asset state
+  let baseColor;
+  if (painting.assetState === 'ERROR') {
+    baseColor = [200, 80, 80]; // Red for error
+  } else if (painting.assetState === 'LOADING') {
+    baseColor = [150, 150, 200]; // Blue-gray for loading
+  } else {
+    baseColor = [150, 150, 200]; // Blue-gray for not loaded
+  }
+
+  fill(baseColor[0] * pulse, baseColor[1] * pulse, baseColor[2] * pulse);
+
+  rect(-w/2, -h/2, w, h);
+
+  // Add glowing overlay if interactable
+  if (showOutline) {
+    const pulseSpeed = 1.2;
+    const pulseAmount = 0.2;
+    const outlinePulse = Math.sin(millis() * 0.001 * pulseSpeed * 2 * Math.PI) * pulseAmount;
+    const glowStrength = 0.4 + outlinePulse;
+
+    blendMode(ADD);
+    const glowAlpha = map(glowStrength, 0.2, 0.6, 30, 80);
+    fill(255, 220, 100, glowAlpha); // Warm yellow glow
+    rect(-w/2, -h/2, w, h);
+    blendMode(BLEND);
+  }
+
+  pop();
+};
+
+const renderSculpturePlaceholder = (sculpture, showOutline) => {
+  push();
+  translate(sculpture.pos.x, sculpture.pos.y, sculpture.pos.z);
+  rotateY(radians(sculpture.rot.y));
+  scale(sculpture.scale.x, sculpture.scale.y, sculpture.scale.z);
+
+  noLights();
+  noStroke();
+
+  // Pulsing animation for loading state
+  const pulse = Math.sin(millis() * 0.002) * 0.2 + 0.8;
+
+  // Different colors based on asset state
+  let baseColor;
+  if (sculpture.modelAssetState === 'ERROR' || sculpture.textureAssetState === 'ERROR') {
+    baseColor = [220, 100, 100]; // Red for error
+  } else if (sculpture.modelAssetState === 'LOADING' || sculpture.textureAssetState === 'LOADING') {
+    baseColor = [180, 180, 220]; // Light blue-gray for loading
+  } else {
+    baseColor = [180, 180, 220]; // Light blue-gray for not loaded
+  }
+
+  fill(baseColor[0] * pulse, baseColor[1] * pulse, baseColor[2] * pulse);
+
+  const size = sculpture.bounds || [1, 1, 1];
+  box(size[0], size[1], size[2]);
+
+  // Add glowing overlay if interactable
+  if (showOutline) {
+    const pulseSpeed = 1.2;
+    const pulseAmount = 0.2;
+    const outlinePulse = Math.sin(millis() * 0.001 * pulseSpeed * 2 * Math.PI) * pulseAmount;
+    const glowStrength = 0.4 + outlinePulse;
+
+    blendMode(ADD);
+    const glowAlpha = map(glowStrength, 0.2, 0.6, 30, 80);
+    fill(255, 220, 100, glowAlpha);
+    box(size[0], size[1], size[2]);
+    blendMode(BLEND);
+  }
+
+  pop();
+};
+
+// ========== Asset Rendering ==========
+
 const renderSculpture = (sculpture, isInteractable) => {
   // Create geometry on first render
   if (!sculpture.geometry) {
@@ -459,11 +552,24 @@ const RenderSystem = (world, dt) => {
       return; // Skip rendering this painting
     }
 
+    // Update last seen frame for asset streaming
+    if (painting.lastSeenFrame !== undefined && typeof ASSET_REGISTRY !== 'undefined') {
+      painting.lastSeenFrame = ASSET_REGISTRY.frameCounter;
+    }
+
     const isInteractable = entity.Interaction && entity.Interaction.isClosest;
     const isFocused = focusedEntity === entity;
     // Hide outline when painting is focused
     const showOutline = isInteractable && !isFocused;
-    renderPainting(painting, showOutline);
+
+    // Render based on asset state
+    if (painting.assetState === 'LOADED' || !painting.assetState) {
+      // Loaded or legacy (no streaming state) - use normal rendering
+      renderPainting(painting, showOutline);
+    } else {
+      // Not loaded, loading, error, or unloaded - show placeholder
+      renderPaintingPlaceholder(painting, showOutline);
+    }
   });
 
   // Enable backface culling for sculptures
@@ -479,9 +585,23 @@ const RenderSystem = (world, dt) => {
       return; // Skip rendering this sculpture
     }
 
+    // Update last seen frame for asset streaming
+    if (sculpture.lastSeenFrame !== undefined && typeof ASSET_REGISTRY !== 'undefined') {
+      sculpture.lastSeenFrame = ASSET_REGISTRY.frameCounter;
+    }
+
     const isInteractable = entity.Interaction && entity.Interaction.isClosest;
     const isFocused = focusedEntity === entity;
-    renderSculpture(sculpture, isInteractable && !isFocused);
+    const showOutline = isInteractable && !isFocused;
+
+    // Render based on asset state
+    if (sculpture.modelAssetState === 'LOADED' || !sculpture.modelAssetState) {
+      // Loaded or legacy (no streaming state) - use normal rendering
+      renderSculpture(sculpture, showOutline);
+    } else {
+      // Not loaded, loading, error, or unloaded - show placeholder
+      renderSculpturePlaceholder(sculpture, showOutline);
+    }
   });
 
   pop();
