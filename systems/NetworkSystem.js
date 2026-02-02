@@ -76,6 +76,14 @@ const connect = (serverUrl, room = 'default') => {
       networkState.connected = false;
       networkState.ws = null;
 
+      // Clean up old remote players before reconnecting
+      networkState.remotePlayers.forEach(entity => {
+        if (entity._markedForRemoval !== true) {
+          removeEntity(world, entity);
+        }
+      });
+      networkState.remotePlayers.clear();
+
       // Auto-reconnect
       if (!networkState.reconnecting) {
         attemptReconnect();
