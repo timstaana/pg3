@@ -353,6 +353,26 @@ const renderSculpture = (sculpture, isInteractable) => {
     });
 
     sculpture.geometry.computeNormals();
+
+    // Calculate center offset to center geometry at origin
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+    sculpture.geometry.vertices.forEach(v => {
+      minX = Math.min(minX, v.x);
+      minY = Math.min(minY, v.y);
+      minZ = Math.min(minZ, v.z);
+      maxX = Math.max(maxX, v.x);
+      maxY = Math.max(maxY, v.y);
+      maxZ = Math.max(maxZ, v.z);
+    });
+
+    // Calculate center offset
+    sculpture.centerOffset = createVector(
+      -(minX + maxX) / 2,
+      -(minY + maxY) / 2,
+      -(minZ + maxZ) / 2
+    );
   }
 
   push();
@@ -371,6 +391,11 @@ const renderSculpture = (sculpture, isInteractable) => {
   // Draw sculpture
   scale(sculpture.scale.x, sculpture.scale.y, sculpture.scale.z);
 
+  // Center the sculpture within its bounds
+  if (sculpture.centerOffset) {
+    translate(sculpture.centerOffset.x, sculpture.centerOffset.y, sculpture.centerOffset.z);
+  }
+
   // Render unaffected by scene lighting - full brightness
   noLights();
 
@@ -388,7 +413,7 @@ const renderSculpture = (sculpture, isInteractable) => {
     blendMode(ADD);
     const glowAlpha = map(glowStrength, 0.2, 0.6, 30, 80);
     fill(255, 220, 100, glowAlpha); // Warm yellow glow
-    // Render without texture for solid color overlay
+    // Render without texture for solid color overlay (already centered from above)
     model(sculpture.geometry);
     blendMode(BLEND); // Reset blend mode
   }
@@ -659,9 +684,22 @@ const RenderSystem = (world, collisionWorld, dt) => {
     renderShadow(entity.Transform.pos, collisionWorld);
   });
 
-  // Render shadows for remote players (multiplayer)
+  // Render shadows for remote players (multiplayer) with culling
   queryEntities(world, 'NetworkedPlayer', 'Transform').forEach(entity => {
-    renderShadow(entity.Transform.pos, collisionWorld);
+    const pos = entity.Transform.pos;
+
+    // Distance culling: skip if too far
+    const distSq = (pos.x - cameraPos.x) ** 2 + (pos.y - cameraPos.y) ** 2 + (pos.z - cameraPos.z) ** 2;
+    if (distSq > CULLING_CONFIG.maxRenderDistance ** 2) {
+      return;
+    }
+
+    // Frustum culling: skip if outside view
+    if (!isPointVisible(pos, cameraPos, cameraLookAt, CULLING_CONFIG.maxRenderDistance)) {
+      return;
+    }
+
+    renderShadow(pos, collisionWorld);
   });
 
   // Always render player (they're always in view)
@@ -670,8 +708,24 @@ const RenderSystem = (world, collisionWorld, dt) => {
   // Render NPCs
   queryEntities(world, 'NPC', 'Transform', 'Animation').forEach(renderNPC);
 
-  // Render remote players (multiplayer)
-  queryEntities(world, 'NetworkedPlayer', 'Transform', 'Animation').forEach(renderRemotePlayer);
+  // Render remote players (multiplayer) with frustum culling
+  queryEntities(world, 'NetworkedPlayer', 'Transform', 'Animation').forEach(entity => {
+    const pos = entity.Transform.pos;
+
+    // Distance culling: skip if too far from camera
+    const distSq = (pos.x - cameraPos.x) ** 2 + (pos.y - cameraPos.y) ** 2 + (pos.z - cameraPos.z) ** 2;
+    const maxDistSq = CULLING_CONFIG.maxRenderDistance ** 2;
+    if (distSq > maxDistSq) {
+      return; // Too far, skip rendering
+    }
+
+    // Frustum culling: skip if outside view
+    if (!isPointVisible(pos, cameraPos, cameraLookAt, CULLING_CONFIG.maxRenderDistance)) {
+      return; // Outside view, skip rendering
+    }
+
+    renderRemotePlayer(entity);
+  });
 
   // Debug: Draw ground normal (disabled for performance)
   // queryEntities(world, 'Player', 'Transform').forEach(renderNormalDebug);

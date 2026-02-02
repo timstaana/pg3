@@ -1,23 +1,22 @@
-// server.js - Minimal Express + WebSocket server for multiplayer
-// Optimized for fast, non-authoritative multiplayer
+// server.js - Lightweight multiplayer server
+// Non-authoritative state relay with room management
 
 const express = require('express');
 const { WebSocketServer } = require('ws');
-const path = require('path');
 const os = require('os');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static files from current directory
+// Serve static files
 app.use(express.static('.'));
 
-// Health check for fly.io
+// Health check
 app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
 
-// Get local IP address for LAN access
+// Get local IP for LAN
 function getLocalIP() {
   const interfaces = os.networkInterfaces();
   for (const name of Object.keys(interfaces)) {
@@ -36,29 +35,21 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`   Local:   http://localhost:${PORT}`);
   console.log(`   Network: http://${localIP}:${PORT}`);
   console.log(`   WebSocket: ws://${localIP}:${PORT}`);
-  console.log(`\n💡 For LAN access, use: ws://${localIP}:${PORT} in config.json`);
 });
 
 // WebSocket server
-const wss = new WebSocketServer({
-  server,
-  perMessageDeflate: false // Disable compression for lower latency
-});
+const wss = new WebSocketServer({ server, perMessageDeflate: false });
 
-// Room management (simple: one room per level)
+// Rooms: Map<roomName, Map<playerId, {ws, state}>>
 const rooms = new Map();
 
-// Connection tracking
-let connectionCount = 0;
-
 wss.on('connection', (ws) => {
-  connectionCount++;
-  console.log(`Player connected (total: ${connectionCount})`);
-
   let playerId = null;
-  let currentRoom = null;
-  let lastBroadcast = 0;
-  const BROADCAST_THROTTLE = 50; // ms between broadcasts (20 updates/sec)
+  let room = null;
+
+  // Native ping/pong for keepalive
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
 
   ws.on('message', (data) => {
     try {
@@ -67,62 +58,40 @@ wss.on('connection', (ws) => {
       switch (msg.type) {
         case 'join':
           playerId = msg.playerId;
-          currentRoom = msg.room || 'default';
+          room = msg.room || 'default';
 
           // Create room if needed
-          if (!rooms.has(currentRoom)) {
-            rooms.set(currentRoom, new Map());
+          if (!rooms.has(room)) {
+            rooms.set(room, new Map());
           }
 
-          rooms.get(currentRoom).set(playerId, { ws, state: msg.state });
+          // Add player to room
+          rooms.get(room).set(playerId, { ws, state: msg.state });
+          console.log(`${playerId.slice(-4)} joined ${room} (${rooms.get(room).size} players)`);
 
-          console.log(`Player ${playerId} joined room ${currentRoom}`);
-
-          // Send existing players to new player
-          const existingPlayers = [];
-          rooms.get(currentRoom).forEach((client, id) => {
+          // Send existing players
+          const players = [];
+          rooms.get(room).forEach((client, id) => {
             if (id !== playerId && client.state) {
-              existingPlayers.push({
-                playerId: id,
-                state: client.state
-              });
+              players.push({ playerId: id, state: client.state });
             }
           });
+          ws.send(JSON.stringify({ type: 'room_state', players }));
 
-          ws.send(JSON.stringify({
-            type: 'room_state',
-            players: existingPlayers
-          }));
-
-          // Notify others about new player (with initial state)
-          broadcast(currentRoom, {
-            type: 'player_joined',
-            playerId,
-            state: msg.state
-          }, playerId);
+          // Notify others
+          broadcast(room, { type: 'player_joined', playerId, state: msg.state }, playerId);
           break;
 
         case 'state':
-          if (currentRoom && playerId) {
-            // Throttle broadcasts to reduce server load
-            const now = Date.now();
-            if (now - lastBroadcast < BROADCAST_THROTTLE) {
-              return;
-            }
-            lastBroadcast = now;
-
-            // Store latest state
-            const client = rooms.get(currentRoom)?.get(playerId);
+          if (room && playerId) {
+            // Update stored state
+            const client = rooms.get(room)?.get(playerId);
             if (client) {
               client.state = msg.state;
             }
 
-            // Broadcast to others
-            broadcast(currentRoom, {
-              type: 'player_state',
-              playerId,
-              state: msg.state
-            }, playerId);
+            // Broadcast to others in room
+            broadcast(room, { type: 'player_state', playerId, state: msg.state }, playerId);
           }
           break;
       }
@@ -132,21 +101,16 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    connectionCount--;
-    console.log(`Player disconnected (total: ${connectionCount})`);
+    if (room && playerId) {
+      rooms.get(room)?.delete(playerId);
+      broadcast(room, { type: 'player_left', playerId });
 
-    if (currentRoom && playerId) {
-      rooms.get(currentRoom)?.delete(playerId);
-
-      broadcast(currentRoom, {
-        type: 'player_left',
-        playerId
-      });
+      const remaining = rooms.get(room)?.size || 0;
+      console.log(`${playerId.slice(-4)} left ${room} (${remaining} players)`);
 
       // Clean up empty rooms
-      if (rooms.get(currentRoom)?.size === 0) {
-        rooms.delete(currentRoom);
-        console.log(`Room ${currentRoom} deleted (empty)`);
+      if (remaining === 0) {
+        rooms.delete(room);
       }
     }
   });
@@ -156,19 +120,34 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Broadcast helper - only sends to active connections
-function broadcast(room, message, excludeId = null) {
-  const roomClients = rooms.get(room);
+// Heartbeat: ping every 30s, terminate stale connections
+const heartbeat = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) {
+      console.log('Terminating stale connection');
+      return ws.terminate();
+    }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 30000);
+
+wss.on('close', () => {
+  clearInterval(heartbeat);
+});
+
+// Broadcast to room
+function broadcast(roomName, message, excludeId = null) {
+  const roomClients = rooms.get(roomName);
   if (!roomClients) return;
 
   const data = JSON.stringify(message);
-
   roomClients.forEach((client, id) => {
-    if (id !== excludeId && client.ws.readyState === 1) { // 1 = OPEN
+    if (id !== excludeId && client.ws.readyState === 1) {
       try {
         client.ws.send(data);
       } catch (err) {
-        console.error(`Failed to send to ${id}:`, err);
+        console.error(`Broadcast error to ${id}:`, err);
       }
     }
   });
@@ -176,7 +155,7 @@ function broadcast(room, message, excludeId = null) {
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, closing server...');
+  console.log('Shutting down...');
   server.close(() => {
     console.log('Server closed');
     process.exit(0);

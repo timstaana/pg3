@@ -20,14 +20,20 @@
     canvas {
       display: block;
       touch-action: none;
-      -webkit-touch-callout: none; /* iOS Safari */
+      /* Prevent text selection */
       -webkit-user-select: none; /* Safari */
       -khtml-user-select: none; /* Konqueror HTML */
       -moz-user-select: none; /* Old versions of Firefox */
       -ms-user-select: none; /* Internet Explorer/Edge */
       user-select: none; /* Standard syntax */
-      -webkit-user-drag: none;
-      -webkit-touch-callout: none;
+      /* Prevent iOS image behavior */
+      -webkit-touch-callout: none; /* iOS Safari long-press menu */
+      -webkit-user-drag: none; /* Prevent drag */
+      user-drag: none;
+      -webkit-tap-highlight-color: transparent; /* Remove tap highlight */
+      /* Prevent image save/copy */
+      pointer-events: auto; /* Ensure pointer events work */
+      -webkit-user-modify: read-only; /* Prevent content editing */
     }
   </style>
 </head>

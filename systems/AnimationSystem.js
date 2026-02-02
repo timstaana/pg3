@@ -102,33 +102,15 @@ const AnimationSystem = (world, dt) => {
   const remotePlayers = queryEntities(world, 'Animation', 'Transform', 'NetworkedPlayer');
 
   remotePlayers.forEach(entity => {
-    const { Animation: anim, Transform: transform, NetworkedPlayer: netData } = entity;
+    const { Animation: anim, NetworkedPlayer: netData } = entity;
 
-    // Detect position movement (forward/backward)
-    const currentPos = transform.pos;
-    const targetPos = netData.targetPos;
-    const distToTarget = p5.Vector.dist(currentPos, targetPos);
-    const isMoving = distToTarget > 0.05; // Moving if more than 0.05 units from target
-
-    // Detect rotation (turning)
-    const currentYaw = transform.rot.y;
-    const targetYaw = netData.targetYaw;
-    let yawDiff = targetYaw - currentYaw;
-    // Normalize angle difference
-    if (yawDiff > 180) yawDiff -= 360;
-    else if (yawDiff < -180) yawDiff += 360;
-    const isTurning = Math.abs(yawDiff) > 1; // Turning if more than 1 degree off
+    // Use movement flags set by NetworkSystem (calculated before interpolation)
+    const isMoving = netData.isMoving || false;
+    const isTurning = netData.isTurning || false;
 
     // Animate if moving OR turning (like local player)
     if (isMoving || isTurning) {
-      // Check if transitioning from idle to walking
-      const wasIdle = anim.currentFrame === 0;
-      if (wasIdle) {
-        anim.currentFrame = 0; // Start from first frame
-        anim.frameTime = 0;
-      }
-
-      // Animate through all frames
+      // Accumulate time for frame advancement
       anim.frameTime += dt;
       const frameDuration = 1 / anim.framesPerSecond;
 

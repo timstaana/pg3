@@ -27,7 +27,7 @@ const deactivateLightbox = () => {
 };
 
 // Calculate camera distance to fit content within screen bounds
-const calculateLightboxDistance = (contentWidth, contentHeight, padding) => {
+const calculateLightboxDistance = (contentWidth, contentHeight) => {
   // Get canvas dimensions
   const canvasWidth = typeof width !== 'undefined' ? width : windowWidth;
   const canvasHeight = typeof height !== 'undefined' ? height : windowHeight;
@@ -37,12 +37,16 @@ const calculateLightboxDistance = (contentWidth, contentHeight, padding) => {
   const screenAspect = canvasWidth / canvasHeight;
   const fovX = 2 * Math.atan(Math.tan(fovY / 2) * screenAspect);
 
-  // Calculate distance needed to fit content in both dimensions
-  const distV = (contentHeight * 0.5) / Math.tan(fovY / 2);
-  const distH = (contentWidth * 0.5) / Math.tan(fovX / 2);
+  // Add padding to content dimensions (10% on each side = 1.2x total)
+  const paddedWidth = contentWidth * 1.2;
+  const paddedHeight = contentHeight * 1.2;
 
-  // Use larger distance to ensure content fits, then apply padding
-  return Math.max(distV, distH) * padding;
+  // Calculate distance needed to fit content in both dimensions
+  const distV = (paddedHeight * 0.5) / Math.tan(fovY / 2);
+  const distH = (paddedWidth * 0.5) / Math.tan(fovX / 2);
+
+  // Use larger distance to ensure content fits in both dimensions
+  return Math.max(distV, distH);
 };
 
 const LightboxSystem = (world, dt) => {
@@ -67,66 +71,68 @@ const LightboxSystem = (world, dt) => {
     const painting = lightboxState.targetEntity.Painting;
     const sculpture = lightboxState.targetEntity.Sculpture;
     const transform = lightboxState.targetEntity.Transform;
-    const lightbox = lightboxState.targetEntity.Lightbox || {};
 
-    let targetPos = transform.pos;
-    let targetRot = transform.rot;
+    if (!transform) {
+      console.error('Lightbox entity missing Transform component');
+      return;
+    }
+
+    let artworkPos = transform.pos;
+    let artworkRot = transform.rot;
     let contentWidth, contentHeight;
-    let lookAtOffset = 0;
+
+    console.log('Lightbox active for:', painting ? 'painting' : 'sculpture',
+                'pos:', artworkPos, 'rot:', artworkRot);
 
     // Get content dimensions
     if (painting) {
       contentWidth = painting.width * painting.scale;
       contentHeight = painting.height * painting.scale;
-      lookAtOffset = lightbox.yOffset || 0;
     } else if (sculpture) {
-      const scaledWidth = sculpture.bounds.width * sculpture.scale.x;
-      const scaledHeight = sculpture.bounds.height * sculpture.scale.y;
-      const scaledDepth = sculpture.bounds.depth * sculpture.scale.z;
+      // Bounds can be array [w,h,d] or object {width,height,depth}
+      const bounds = sculpture.bounds || [1, 1, 1];
+      const scale = sculpture.scale?.x || 1; // Uniform scale (same as placeholder rendering)
+
+      // Handle both array and object formats
+      const w = Array.isArray(bounds) ? bounds[0] : bounds.width || 1;
+      const h = Array.isArray(bounds) ? bounds[1] : bounds.height || 1;
+      const d = Array.isArray(bounds) ? bounds[2] : bounds.depth || 1;
 
       // Use max of width/depth for horizontal, height for vertical
-      contentWidth = Math.max(scaledWidth, scaledDepth);
-      contentHeight = scaledHeight;
-      lookAtOffset = lightbox.yOffset !== undefined ? lightbox.yOffset : scaledHeight * 0.25;
+      contentWidth = Math.max(w, d) * scale;
+      contentHeight = h * scale;
     }
 
     if (contentWidth && contentHeight) {
-      // Determine distance: use fixed distance if specified, otherwise calculate with padding
-      let distance;
+      // Calculate distance needed to fit artwork on screen
+      let distance = calculateLightboxDistance(contentWidth, contentHeight);
 
-      if (lightbox.distance !== undefined) {
-        // Use per-entity fixed distance
-        distance = lightbox.distance;
-      } else if (LIGHTBOX_CONFIG?.distance && lightbox.padding === undefined) {
-        // Use global fixed distance if no padding override
-        distance = LIGHTBOX_CONFIG.distance;
-      } else {
-        // Calculate distance with padding (default behavior)
-        const defaultPadding = LIGHTBOX_CONFIG?.padding || 1.5;
-        const padding = lightbox.padding !== undefined ? lightbox.padding : defaultPadding;
-        distance = calculateLightboxDistance(contentWidth, contentHeight, padding);
+      // Apply distance multiplier from config
+      if (sculpture) {
+        const sculptureMultiplier = LIGHTBOX_CONFIG?.sculptureDistanceMultiplier || 1.4;
+        distance *= sculptureMultiplier;
+      } else if (painting) {
+        const paintingMultiplier = LIGHTBOX_CONFIG?.paintingDistanceMultiplier || 1.2;
+        distance *= paintingMultiplier;
       }
 
-      // Calculate forward direction from rotation
-      const yawRad = targetRot.y * Math.PI / 180;
+      // Calculate forward direction from artwork rotation (perpendicular to artwork face)
+      const yawRad = artworkRot.y * Math.PI / 180;
       const forward = createVector(Math.sin(yawRad), 0, Math.cos(yawRad));
 
-      // Position camera in front of content
+      // Artwork is already centered at artworkPos (paintings are drawn centered,
+      // sculptures are centered via centerOffset)
+      const artworkCenter = artworkPos.copy();
+
+      // Position camera in front of artwork, pointing straight at it
       const cameraOffset = p5.Vector.mult(forward, distance);
-      lightboxState.targetPos = p5.Vector.add(targetPos, cameraOffset);
+      lightboxState.targetPos = p5.Vector.add(artworkCenter, cameraOffset);
 
-      // For sculptures, place camera at center height; for paintings, use lookAtOffset
-      if (sculpture) {
-        lightboxState.targetPos.y = targetPos.y + contentHeight * 0.5;
-      } else {
-        lightboxState.targetPos.y += lookAtOffset;
-      }
+      // Look at artwork center
+      lightboxState.targetLookAt = artworkCenter.copy();
 
-      // Look at content center (for sculptures, look at vertical center)
-      lightboxState.targetLookAt = targetPos.copy();
-      if (sculpture) {
-        lightboxState.targetLookAt.y += contentHeight * 0.5;
-      }
+      console.log('Camera setup:', 'distance:', distance, 'forward:', forward,
+                  'cameraPos:', lightboxState.targetPos, 'lookAt:', lightboxState.targetLookAt);
     }
   }
 

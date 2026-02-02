@@ -127,6 +127,31 @@ async function setup() {
 
   createCanvas(windowWidth, windowHeight, WEBGL);
 
+  // Prevent iOS from treating canvas as an image
+  const canvas = document.querySelector('canvas');
+  if (canvas) {
+    // CSS properties to prevent image-like behavior
+    canvas.style.touchAction = 'none';
+    canvas.style.userSelect = 'none';
+    canvas.style.webkitUserSelect = 'none';
+    canvas.style.webkitTouchCallout = 'none';
+    canvas.style.webkitTapHighlightColor = 'transparent';
+    canvas.style.webkitUserDrag = 'none';
+    canvas.style.userDrag = 'none';
+
+    // Prevent context menu and drag events (don't interfere with touch/pointer events)
+    // TouchInputSystem handles pointer events with its own preventDefault
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    canvas.addEventListener('dragstart', (e) => e.preventDefault());
+
+    // Prevent iOS long-press image save menu
+    canvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length > 1) {
+        e.preventDefault(); // Only prevent multi-touch zoom
+      }
+    }, { passive: false });
+  }
+
   // Load configuration
   const configResponse = await fetch('config.json');
   const config = await configResponse.json();
@@ -270,6 +295,7 @@ const runSystems = (dt) => {
   IntegrateSystem(world, dt);
   CollisionSystem(world, collisionWorld, dt);
   RespawnSystem(world, dt);
+  NetworkSystem(world, dt); // Multiplayer networking (before animation for movement flags)
   AnimationSystem(world, dt);
   InteractionSystem(world);
   DialogueSystem(world, dt); // NPC dialogue and interactions
@@ -277,7 +303,6 @@ const runSystems = (dt) => {
   AssetStreamingSystem(world, dt); // Progressive asset loading
   CameraSystem(world, collisionWorld);
   RenderSystem(world, collisionWorld, dt);
-  NetworkSystem(world, dt); // Multiplayer networking
   CanvasOverlaySystem(world, dt);
   TouchJoystickRenderSystem(world, dt, getTouchState());
 };
@@ -326,13 +351,34 @@ const updateDebugInfo = (dt) => {
     slopeType = 'Steep';
   }
 
-  debugTextEntity.CanvasOverlay.text = [
+  const debugLines = [
     `FPS: ${fps}`,
     `Pos: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)})`,
     `Grounded: ${playerData.grounded}`,
     `Slope: ${slopeAngle.toFixed(1)}° (${slopeType})`,
     `Triangles: ${collisionWorld.tris.length}`,
   ];
+
+  // Add network stats if multiplayer active
+  if (typeof getNetworkState === 'function') {
+    const netState = getNetworkState();
+    if (netState.connected) {
+      debugLines.push('');
+      debugLines.push('=== NETWORK ===');
+      debugLines.push(`Status: ✓ Connected`);
+      debugLines.push(`Players: ${netState.remotePlayers.size}`);
+
+      if (netState.reconnecting) {
+        debugLines.push(`Reconnecting (${netState.reconnectAttempt}/${netState.maxReconnectAttempts})`);
+      }
+    } else if (netState.reconnecting) {
+      debugLines.push('');
+      debugLines.push('=== NETWORK ===');
+      debugLines.push('Status: Reconnecting...');
+    }
+  }
+
+  debugTextEntity.CanvasOverlay.text = debugLines;
 };
 
 // ========== Window Events ==========
