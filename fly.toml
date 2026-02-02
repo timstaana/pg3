@@ -10,7 +10,7 @@ primary_region = 'syd'
   dockerfile = "Dockerfile"
 
 [env]
-  PORT = "3000"
+  PORT = "8080"
   NODE_ENV = "production"
 
 [http_service]

@@ -269,7 +269,7 @@ async function setup() {
     if (!serverUrl) {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const hostname = window.location.hostname;
-      const port = window.location.port || '3000';
+      const port = window.location.port || '8080';
       serverUrl = `${protocol}//${hostname}:${port}`;
       console.log(`Auto-detected server URL: ${serverUrl}`);
     }
