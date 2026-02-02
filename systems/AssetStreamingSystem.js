@@ -57,19 +57,6 @@ const loadPaintingAsset = async (entity) => {
       );
     });
 
-    // Create texture (handle GIFs)
-    let texture;
-    const isGif = painting.assetSrc.toLowerCase().endsWith('.gif');
-
-    if (isGif || img.gifProperties) {
-      const gfx = createGraphics(img.width, img.height);
-      gfx.pixelDensity(1);
-      gfx.image(img, 0, 0, img.width, img.height);
-      texture = gfx;
-    } else {
-      texture = img;
-    }
-
     // Calculate aspect ratio and update dimensions
     const aspect = img.width / img.height;
     const boundWidth = painting.width;
@@ -87,6 +74,21 @@ const loadPaintingAsset = async (entity) => {
         fittedHeight = boundHeight;
         fittedWidth = boundHeight * aspect;
       }
+    }
+
+    // Create texture for WebGL compatibility
+    let texture;
+    const isGif = painting.assetSrc.toLowerCase().endsWith('.gif');
+
+    if (isGif || img.gifProperties) {
+      // GIFs need a graphics buffer for WebGL
+      const gfx = createGraphics(img.width, img.height);
+      gfx.pixelDensity(1); // Lower quality = faster
+      gfx.image(img, 0, 0, img.width, img.height);
+      texture = gfx;
+    } else {
+      // Static images can use the image directly
+      texture = img;
     }
 
     // Update painting component
@@ -248,9 +250,15 @@ const updateLoadPriorities = (world) => {
 // ========== Queue Processing ==========
 
 const processLoadQueue = () => {
+  // Only start new loads if cooldown has elapsed (prevents stuttering)
+  const framesSinceLastLoad = ASSET_REGISTRY.frameCounter - ASSET_REGISTRY.lastLoadFrame;
+  if (framesSinceLastLoad < ASSET_REGISTRY.loadCooldown) {
+    return; // Still in cooldown period
+  }
+
   // Respect max concurrent loads
-  while (ASSET_REGISTRY.loadQueue.length > 0 &&
-         ASSET_REGISTRY.activeLoads.size < ASSET_REGISTRY.maxConcurrentLoads) {
+  if (ASSET_REGISTRY.loadQueue.length > 0 &&
+      ASSET_REGISTRY.activeLoads.size < ASSET_REGISTRY.maxConcurrentLoads) {
 
     const { entity, assetType } = ASSET_REGISTRY.loadQueue.shift();
 
@@ -258,11 +266,13 @@ const processLoadQueue = () => {
     if (assetType === 'painting') {
       const painting = entity.Painting;
       if (painting.assetState === 'NOT_LOADED' || painting.assetState === 'UNLOADED') {
+        ASSET_REGISTRY.lastLoadFrame = ASSET_REGISTRY.frameCounter; // Update cooldown
         loadPaintingAsset(entity);
       }
     } else if (assetType === 'sculpture') {
       const sculpture = entity.Sculpture;
       if (sculpture.modelAssetState === 'NOT_LOADED' || sculpture.modelAssetState === 'UNLOADED') {
+        ASSET_REGISTRY.lastLoadFrame = ASSET_REGISTRY.frameCounter; // Update cooldown
         loadSculptureAssets(entity);
       }
     }

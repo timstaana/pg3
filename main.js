@@ -36,9 +36,11 @@ let NPC_AVATAR_TEXTURES = {};
 const ASSET_REGISTRY = {
   loadQueue: [],              // Priority queue of {entity, assetType, priority}
   activeLoads: new Set(),     // Currently loading URLs to prevent duplicates
-  maxConcurrentLoads: 4,      // Limit parallel fetches
+  maxConcurrentLoads: 1,      // Limit parallel fetches (lower = less stuttering)
   frameCounter: 0,            // Global frame counter for LRU tracking
-  levelDir: ''                // Current level directory for asset paths
+  levelDir: '',               // Current level directory for asset paths
+  lastLoadFrame: 0,           // Last frame when a load was started
+  loadCooldown: 60            // Wait N frames between starting new loads (1 second at 60fps)
 };
 
 // Asset streaming configuration
