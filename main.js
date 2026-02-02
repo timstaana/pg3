@@ -235,6 +235,26 @@ async function setup() {
     }
   });
 
+  // Initialize multiplayer if enabled
+  if (config.multiplayer && config.multiplayer.enabled) {
+    console.log('Multiplayer enabled - connecting to server...');
+
+    // Auto-detect server URL from current page URL (unless manually specified)
+    let serverUrl = config.multiplayer.serverUrl;
+    if (!serverUrl) {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const hostname = window.location.hostname;
+      const port = window.location.port || '3000';
+      serverUrl = `${protocol}//${hostname}:${port}`;
+      console.log(`Auto-detected server URL: ${serverUrl}`);
+    }
+
+    // Use level name as room (default behavior if room not specified)
+    const room = config.multiplayer.room || config.defaultLevel || 'default';
+    console.log(`Joining multiplayer room: "${room}"`);
+    enableMultiplayer(serverUrl, room);
+  }
+
   // Remove loading screen
   removeLoadingScreen();
 }
@@ -257,6 +277,7 @@ const runSystems = (dt) => {
   AssetStreamingSystem(world, dt); // Progressive asset loading
   CameraSystem(world, collisionWorld);
   RenderSystem(world, collisionWorld, dt);
+  NetworkSystem(world, dt); // Multiplayer networking
   CanvasOverlaySystem(world, dt);
   TouchJoystickRenderSystem(world, dt, getTouchState());
 };

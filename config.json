@@ -43,5 +43,10 @@
     "cooldownDuration": 0.5,
     "distance": 2
   },
+  "multiplayer": {
+    "enabled": true,
+    "serverUrl": null,
+    "room": null
+  },
   "defaultLevel": "gallery001"
 }

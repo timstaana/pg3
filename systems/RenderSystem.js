@@ -188,6 +188,37 @@ const renderNPC = (npc) => {
   renderCharacterSprite(pos, rot, anim, npcData.radius, avatarTextures.front, avatarTextures.back, isInteractable);
 };
 
+const renderRemotePlayer = (player) => {
+  const { Transform: { pos, rot }, Animation: anim, NetworkedPlayer: netData } = player;
+
+  // Try to get textures (prioritize avatar textures, fallback to player textures)
+  let frontTex = null;
+  let backTex = null;
+
+  // First try NPC avatar textures
+  if (typeof NPC_AVATAR_TEXTURES !== 'undefined') {
+    const avatarTextures = NPC_AVATAR_TEXTURES[netData.avatar] || NPC_AVATAR_TEXTURES['default'];
+    if (avatarTextures && avatarTextures.front && avatarTextures.back) {
+      frontTex = avatarTextures.front;
+      backTex = avatarTextures.back;
+    }
+  }
+
+  // Fallback to player textures if avatar textures not available
+  if (!frontTex && typeof PLAYER_FRONT_TEX !== 'undefined' && typeof PLAYER_BACK_TEX !== 'undefined') {
+    frontTex = PLAYER_FRONT_TEX;
+    backTex = PLAYER_BACK_TEX;
+  }
+
+  // Skip rendering if no textures available
+  if (!frontTex || !backTex) {
+    console.warn('Remote player missing textures:', netData.playerId);
+    return;
+  }
+
+  renderCharacterSprite(pos, rot, anim, netData.radius, frontTex, backTex, false);
+};
+
 const renderLabel = (label) => {
   const options = {
     fontSize: label.fontSize,
@@ -628,11 +659,19 @@ const RenderSystem = (world, collisionWorld, dt) => {
     renderShadow(entity.Transform.pos, collisionWorld);
   });
 
+  // Render shadows for remote players (multiplayer)
+  queryEntities(world, 'NetworkedPlayer', 'Transform').forEach(entity => {
+    renderShadow(entity.Transform.pos, collisionWorld);
+  });
+
   // Always render player (they're always in view)
   queryEntities(world, 'Player', 'Transform').forEach(renderPlayer);
 
   // Render NPCs
   queryEntities(world, 'NPC', 'Transform', 'Animation').forEach(renderNPC);
+
+  // Render remote players (multiplayer)
+  queryEntities(world, 'NetworkedPlayer', 'Transform', 'Animation').forEach(renderRemotePlayer);
 
   // Debug: Draw ground normal (disabled for performance)
   // queryEntities(world, 'Player', 'Transform').forEach(renderNormalDebug);
