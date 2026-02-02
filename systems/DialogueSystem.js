@@ -142,27 +142,27 @@ const DialogueSystem = (world, dt) => {
     dialogueState.cooldown -= dt;
   }
 
-  const player = queryEntities(world, 'Player', 'Transform')[0];
-  if (!player) return;
-
   // Handle NPCs in interaction range (before dialogue starts)
   if (!dialogueState.active) {
-    // Find all NPCs with dialogue and interaction components
-    const interactableNPCs = queryEntities(world, 'NPC', 'Dialogue', 'Interaction', 'Transform');
+    // Only query NPCs if there are any with dialogue
+    const interactableNPCs = queryEntities(world, 'NPC', 'Dialogue', 'Interaction');
 
-    interactableNPCs.forEach(npc => {
+    // Optimization: Only process if there are interactable NPCs
+    if (interactableNPCs.length === 0) return;
+
+    const player = queryEntities(world, 'Player', 'Transform')[0];
+    if (!player) return;
+
+    // Process each NPC efficiently
+    for (const npc of interactableNPCs) {
       const interaction = npc.Interaction;
-      const npcTransform = npc.Transform;
 
       // If this NPC is the closest interactable, pause and face player
       if (interaction.isClosest && interaction.inRange) {
-        // Pause script and stop movement
+        // Pause script and stop movement (only once)
         if (npc.Script && !npc.Script.paused) {
           npc.Script.paused = true;
-          // Store that we paused it for interaction
-          if (!npc.Script._pausedForInteraction) {
-            npc.Script._pausedForInteraction = true;
-          }
+          npc.Script._pausedForInteraction = true;
           // Clear velocity to stop NPC movement
           if (npc.Velocity) {
             npc.Velocity.vel.set(0, 0, 0);
@@ -170,65 +170,74 @@ const DialogueSystem = (world, dt) => {
         }
 
         // Smoothly rotate to face player
-        const npcPos = npcTransform.pos;
-        const playerPos = player.Transform.pos;
-        const toPlayer = p5.Vector.sub(playerPos, npcPos);
-        toPlayer.y = 0;
+        if (npc.Transform) {
+          const npcPos = npc.Transform.pos;
+          const playerPos = player.Transform.pos;
+          const dx = playerPos.x - npcPos.x;
+          const dz = playerPos.z - npcPos.z;
 
-        const targetAngle = Math.atan2(toPlayer.x, toPlayer.z);
-        const targetYaw = -degrees(targetAngle);
+          const targetAngle = Math.atan2(dx, dz);
+          const targetYaw = -degrees(targetAngle);
 
-        let currentYaw = npcTransform.rot.y;
-        let diff = targetYaw - currentYaw;
-        while (diff > 180) diff -= 360;
-        while (diff < -180) diff += 360;
+          let currentYaw = npc.Transform.rot.y;
+          let diff = targetYaw - currentYaw;
 
-        const rotSpeed = 360; // degrees per second
-        const step = rotSpeed * dt;
+          // Normalize angle difference
+          if (diff > 180) diff -= 360;
+          else if (diff < -180) diff += 360;
 
-        if (Math.abs(diff) < step) {
-          npcTransform.rot.y = targetYaw;
-        } else {
-          npcTransform.rot.y += Math.sign(diff) * step;
+          const rotSpeed = 360;
+          const step = rotSpeed * dt;
+
+          if (Math.abs(diff) < step) {
+            npc.Transform.rot.y = targetYaw;
+          } else {
+            npc.Transform.rot.y += Math.sign(diff) * step;
+          }
         }
       }
       // If player left range, resume script
-      else if (!interaction.inRange || !interaction.isClosest) {
-        if (npc.Script && npc.Script._pausedForInteraction) {
-          npc.Script.paused = false;
-          npc.Script._pausedForInteraction = false;
-        }
+      else if (npc.Script && npc.Script._pausedForInteraction) {
+        npc.Script.paused = false;
+        npc.Script._pausedForInteraction = false;
       }
-    });
+    }
 
     return; // Don't process dialogue mode
   }
 
-  // Keep NPC facing player during dialogue
-  const entity = dialogueState.targetEntity;
-  if (entity && entity.Transform && entity.NPC) {
-    const npcPos = entity.Transform.pos;
-    const playerPos = player.Transform.pos;
-    const toPlayer = p5.Vector.sub(playerPos, npcPos);
-    toPlayer.y = 0;
+  const player = queryEntities(world, 'Player', 'Transform')[0];
+  if (!player) return;
 
-    // Smoothly rotate to face player
-    const targetAngle = Math.atan2(toPlayer.x, toPlayer.z);
-    const targetYaw = -degrees(targetAngle);
+  // Keep current speaker facing player during dialogue
+  if (dialogueState.currentSpeaker) {
+    const speakerEntity = findNPCByName(world, dialogueState.currentSpeaker);
 
-    // Smooth rotation
-    let currentYaw = entity.Transform.rot.y;
-    let diff = targetYaw - currentYaw;
-    while (diff > 180) diff -= 360;
-    while (diff < -180) diff += 360;
+    if (speakerEntity && speakerEntity.Transform) {
+      const npcPos = speakerEntity.Transform.pos;
+      const playerPos = player.Transform.pos;
+      const dx = playerPos.x - npcPos.x;
+      const dz = playerPos.z - npcPos.z;
 
-    const rotSpeed = 360; // degrees per second
-    const step = rotSpeed * dt;
+      // Smoothly rotate to face player
+      const targetAngle = Math.atan2(dx, dz);
+      const targetYaw = -degrees(targetAngle);
 
-    if (Math.abs(diff) < step) {
-      entity.Transform.rot.y = targetYaw;
-    } else {
-      entity.Transform.rot.y += Math.sign(diff) * step;
+      let currentYaw = speakerEntity.Transform.rot.y;
+      let diff = targetYaw - currentYaw;
+
+      // Normalize angle difference
+      if (diff > 180) diff -= 360;
+      else if (diff < -180) diff += 360;
+
+      const rotSpeed = 360; // degrees per second
+      const step = rotSpeed * dt;
+
+      if (Math.abs(diff) < step) {
+        speakerEntity.Transform.rot.y = targetYaw;
+      } else {
+        speakerEntity.Transform.rot.y += Math.sign(diff) * step;
+      }
     }
   }
 };

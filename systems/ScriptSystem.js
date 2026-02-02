@@ -107,10 +107,27 @@ const handleMoveTo = (entity, command, dt) => {
     vel.z = toTarget.z * speed;
   }
 
-  // Update rotation to face movement direction (horizontal only)
+  // Smoothly update rotation to face movement direction (horizontal only)
   if (entity.Transform.rot) {
-    const angle = Math.atan2(toTarget.x, toTarget.z);
-    entity.Transform.rot.y = -degrees(angle);
+    const targetAngle = Math.atan2(toTarget.x, toTarget.z);
+    const targetYaw = -degrees(targetAngle);
+
+    let currentYaw = entity.Transform.rot.y;
+    let diff = targetYaw - currentYaw;
+
+    // Normalize angle difference
+    if (diff > 180) diff -= 360;
+    else if (diff < -180) diff += 360;
+
+    // Smooth rotation (faster than dialogue, since NPC is moving)
+    const rotSpeed = 540; // degrees per second (1.5x normal)
+    const step = rotSpeed * dt;
+
+    if (Math.abs(diff) < step) {
+      entity.Transform.rot.y = targetYaw;
+    } else {
+      entity.Transform.rot.y += Math.sign(diff) * step;
+    }
   }
 };
 

@@ -16,14 +16,13 @@
       "pos": [-3.0, 3.0, 0.0],
       "yaw": 90.0,
       "avatar": "default",
-      "frame": 0,
       "interaction": true,
       "script": {
         "loop": true,
         "commands": [
-          { "type": "moveTo", "target": [3.0, 1.0, 0.0], "speed": 2.0, "fly": true },
+          { "type": "moveTo", "target": [3.0, 1.0, 0.0], "speed": 2.0, "fly": false },
           { "type": "wait", "duration": 1.0 },
-          { "type": "moveTo", "target": [-3.0, 1.0, 0.0], "speed": 2.0, "fly": true },
+          { "type": "moveTo", "target": [-3.0, 1.0, 0.0], "speed": 2.0, "fly": false },
           { "type": "wait", "duration": 1.0 }
         ]
       },
@@ -66,7 +65,6 @@
       "pos": [3.0, 3.0, -3.0],
       "yaw": 270.0,
       "avatar": "default",
-      "frame": 1,
       "interaction": true,
       "dialogue": {
         "conversations": [

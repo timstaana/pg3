@@ -146,19 +146,22 @@ const CameraSystem = (world, collisionWorld) => {
 
     // Get player-to-NPC direction to position camera between them
     const toNpc = p5.Vector.sub(npcPos, playerPos);
+    const horizontalDist = Math.sqrt(toNpc.x * toNpc.x + toNpc.z * toNpc.z);
     toNpc.y = 0;
     toNpc.normalize();
 
-    // Camera positioned slightly to the side and closer to player
-    const camOffset = p5.Vector.mult(toNpc, dialogueDist * 0.6);
+    // Camera positioned between player and NPC
+    // Use actual distance to avoid clipping when NPC is close
+    const actualOffset = Math.min(horizontalDist * 0.5, dialogueDist * 0.5);
+    const camOffset = p5.Vector.mult(toNpc, actualOffset);
     const sideOffset = createVector(-toNpc.z, 0, toNpc.x);
-    sideOffset.mult(1.2); // Offset to side
+    sideOffset.mult(1.5); // Increased side offset to avoid clipping
 
     targetEyeX = playerPos.x + camOffset.x + sideOffset.x;
-    targetEyeY = playerPos.y + 1.2; // Eye level
+    targetEyeY = playerPos.y + 1.6; // Higher eye level to account for dialogue box
     targetEyeZ = playerPos.z + camOffset.z + sideOffset.z;
     targetCenterX = npcPos.x;
-    targetCenterY = npcPos.y;
+    targetCenterY = npcPos.y - 0.3; // Look lower to position NPC higher in frame, above dialogue box
     targetCenterZ = npcPos.z;
   }
   // If lightbox is active (and dialogue is not), blend towards lightbox camera

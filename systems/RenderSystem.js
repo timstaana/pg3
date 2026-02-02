@@ -150,11 +150,13 @@ const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex, isInte
     fill(255, 220, 100, glowAlpha); // Warm yellow glow
 
     // Render without texture for solid color overlay
+    // Slightly forward (z=0.01) to prevent z-fighting with main sprite
+    const glowOffset = 0.01;
     beginShape();
-    vertex(-halfWidth, spriteBottom, 0);
-    vertex(halfWidth, spriteBottom, 0);
-    vertex(halfWidth, spriteBottom + characterHeight, 0);
-    vertex(-halfWidth, spriteBottom + characterHeight, 0);
+    vertex(-halfWidth, spriteBottom, glowOffset);
+    vertex(halfWidth, spriteBottom, glowOffset);
+    vertex(halfWidth, spriteBottom + characterHeight, glowOffset);
+    vertex(-halfWidth, spriteBottom + characterHeight, glowOffset);
     endShape(CLOSE);
     blendMode(BLEND); // Reset blend mode
   }
@@ -179,7 +181,9 @@ const renderNPC = (npc) => {
   if (!avatarTextures) return; // Skip if textures not loaded
 
   // Check if NPC is interactable (highlighted when player is nearby)
-  const isInteractable = npc.Interaction && npc.Interaction.isClosest;
+  // Hide glow during dialogue
+  const dialogueActive = typeof getDialogueState === 'function' ? getDialogueState().active : false;
+  const isInteractable = npc.Interaction && npc.Interaction.isClosest && !dialogueActive;
 
   renderCharacterSprite(pos, rot, anim, npcData.radius, avatarTextures.front, avatarTextures.back, isInteractable);
 };
