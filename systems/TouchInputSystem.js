@@ -20,6 +20,7 @@ const touchState = {
   jumpQueued: false,
   jumpPointerId: null,
   tapRequested: false,
+  tapPosition: null,
   multiTouch: false,
 };
 
@@ -113,10 +114,11 @@ const onUp = (e) => {
     return;
   }
 
-  // Tap to jump (if not multi-touch)
+  // Tap detected (if not multi-touch)
   if (touchState.pending && e.pointerId === touchState.pending.id) {
     if (!touchState.multiTouch) {
       touchState.tapRequested = true;
+      touchState.tapPosition = { x: e.clientX, y: e.clientY };
     }
     touchState.pending = null;
   }
@@ -143,6 +145,9 @@ const setupTouchListeners = () => {
 const TouchInputSystem = (world, dt) => {
   setupTouchListeners();
 
+  const lightbox = typeof getLightboxState === 'function' ? getLightboxState() : null;
+  const inLightboxMode = lightbox && lightbox.active;
+
   const players = queryEntities(world, 'Player', 'Input');
 
   players.forEach(player => {
@@ -160,11 +165,48 @@ const TouchInputSystem = (world, dt) => {
       input.forward = -touchState.stick.y; // Invert Y (up = forward)
     }
 
-    // Handle jump input
-    if (touchState.jumpQueued || touchState.tapRequested) {
+    // Handle tap input
+    if (touchState.tapRequested && touchState.tapPosition) {
+      // Exit lightbox if in lightbox mode
+      if (inLightboxMode && lightbox.cooldown <= 0) {
+        if (typeof deactivateLightbox === 'function') {
+          deactivateLightbox();
+        }
+        touchState.tapRequested = false;
+        touchState.tapPosition = null;
+        return;
+      }
+
+      // Check if there's a highlighted interactable nearby
+      // Simpler approach: tap anywhere to activate the closest interactable
+      let hitInteractable = false;
+      const interactables = queryEntities(world, 'Interaction');
+
+      for (const entity of interactables) {
+        // If this entity is the closest interactable (highlighted with glow)
+        if (entity.Interaction.isClosest) {
+          // Activate it!
+          if (typeof activateLightbox === 'function') {
+            activateLightbox(entity);
+            hitInteractable = true;
+            break;
+          }
+        }
+      }
+
+      // If didn't hit interactable, treat as jump
+      if (!hitInteractable) {
+        input.jump = true;
+      }
+
+      touchState.tapRequested = false;
+      touchState.tapPosition = null;
+    }
+
+    // Handle multi-touch jump
+    if (touchState.jumpQueued) {
       input.jump = true;
       touchState.jumpQueued = false;
-      touchState.tapRequested = false;
     }
   });
 };

@@ -2,6 +2,8 @@
 // Y-up world space converted to p5.js Y-down space
 
 let alphaCutoutShader = null;
+let outlineShader = null;
+let outlineShaderFailed = false; // Track if shader failed to prevent repeated errors
 
 const renderBoxCollider = (col) => {
   push();
@@ -110,14 +112,19 @@ const renderPlayer = (player) => {
   // Make sprite unaffected by scene lighting - render at full brightness
   noLights();
 
-  // Note: Shader disabled for p5.js v2 compatibility
-  // p5.js v2 has breaking changes in shader API that need investigation
-  // Alpha cutout will work via texture alpha channel instead
-
   noStroke();
   fill(255); // Render texture at full brightness
-  texture(useFrontTexture ? PLAYER_FRONT_TEX : PLAYER_BACK_TEX);
+
+  const playerTexture = useFrontTexture ? PLAYER_FRONT_TEX : PLAYER_BACK_TEX;
+  texture(playerTexture);
   textureMode(NORMAL);
+
+  // Apply alpha cutout shader if available
+  if (alphaCutoutShader) {
+    shader(alphaCutoutShader);
+    alphaCutoutShader.setUniform('uTexture', playerTexture);
+    alphaCutoutShader.setUniform('uAlphaCutoff', 0.1); // Discard pixels with alpha < 0.1
+  }
 
   beginShape();
   vertex(-halfWidth, spriteBottom, 0, uMin, 1);
@@ -125,6 +132,11 @@ const renderPlayer = (player) => {
   vertex(halfWidth, spriteBottom + playerHeight, 0, uMax, 0);
   vertex(-halfWidth, spriteBottom + playerHeight, 0, uMin, 0);
   endShape(CLOSE);
+
+  // Reset shader
+  if (alphaCutoutShader) {
+    resetShader();
+  }
 
   // Restore scene lighting for other objects
   ambientLight(100);
@@ -183,46 +195,40 @@ const renderSculpture = (sculpture, isInteractable) => {
   rotateX(radians(-sculpture.rot.x));
   rotateZ(radians(-sculpture.rot.z));
 
-  // Draw outline if interactable
-  if (isInteractable) {
-    const outlineScale = 1.05; // 5% larger for outline
-    const pulseSpeed = 3;
-    const pulseAmount = 0.01;
+  // Apply highlight if interactable (soft breathing effect)
+  const pulseSpeed = 1.2;
+  const pulseAmount = 0.2;
+  const pulse = isInteractable ? Math.sin(millis() * 0.001 * pulseSpeed * 2 * Math.PI) * pulseAmount : 0;
+  const glowStrength = isInteractable ? 0.4 + pulse : 0;
 
-    // Animate outline with pulse effect
-    const pulse = Math.sin(millis() * 0.001 * pulseSpeed * 2 * Math.PI) * pulseAmount;
-    const finalOutlineScale = outlineScale + pulse;
-
-    push();
-    scale(sculpture.scale.x * finalOutlineScale, sculpture.scale.y * finalOutlineScale, sculpture.scale.z * finalOutlineScale);
-
-    // Disable backface culling for outline so it shows from all angles
-    const gl = drawingContext;
-    gl.disable(gl.CULL_FACE);
-
-    // Draw outline with glowing color
-    noStroke();
-    ambientMaterial(255, 220, 100); // Warm yellow-white glow
-    model(sculpture.geometry);
-
-    // Re-enable backface culling
-    gl.enable(gl.CULL_FACE);
-    gl.cullFace(gl.BACK);
-
-    pop();
-  }
-
-  // Draw normal sculpture
+  // Draw sculpture
   scale(sculpture.scale.x, sculpture.scale.y, sculpture.scale.z);
+
+  // Render unaffected by scene lighting - full brightness
+  noLights();
+
+  noStroke();
+  fill(255);
 
   if (sculpture.texture) {
     texture(sculpture.texture);
-  } else {
-    ambientMaterial(200);
   }
 
-  noStroke();
   model(sculpture.geometry);
+
+  // Add glowing overlay if interactable
+  if (isInteractable) {
+    blendMode(ADD);
+    const glowAlpha = map(glowStrength, 0.2, 0.6, 30, 80);
+    fill(255, 220, 100, glowAlpha); // Warm yellow glow
+    // Render without texture for solid color overlay
+    model(sculpture.geometry);
+    blendMode(BLEND); // Reset blend mode
+  }
+
+  // Restore scene lighting for other objects
+  ambientLight(100);
+  directionalLight(200, 200, 200, 0, 1, 0);
 
   pop();
 };
@@ -269,36 +275,19 @@ const renderPainting = (painting, isInteractable) => {
   const halfW = w / 2;
   const halfH = h / 2;
 
-  // Draw outline if interactable
-  if (isInteractable) {
-    const outlineThickness = 0.15;
-    const outlineExpand = 0.2;
-    const pulseSpeed = 3;
-    const pulseAmount = 0.05;
+  // Apply highlight if interactable (soft breathing effect)
+  const pulseSpeed = 1.2;
+  const pulseAmount = 0.2;
+  const pulse = isInteractable ? Math.sin(millis() * 0.001 * pulseSpeed * 2 * Math.PI) * pulseAmount : 0;
+  const glowStrength = isInteractable ? 0.4 + pulse : 0;
 
-    // Animate outline with pulse effect
-    const pulse = Math.sin(millis() * 0.001 * pulseSpeed * 2 * Math.PI) * pulseAmount;
-    const expandedW = w + outlineExpand + pulse;
-    const expandedH = h + outlineExpand + pulse;
-    const expandedHalfW = expandedW / 2;
-    const expandedHalfH = expandedH / 2;
+  // Render unaffected by scene lighting - full brightness
+  noLights();
 
-    // Draw glowing outline
-    noFill();
-    stroke(255, 220, 100); // Warm yellow-white glow
-    strokeWeight(outlineThickness);
-
-    beginShape();
-    vertex(-expandedHalfW, -expandedHalfH, 0.01);
-    vertex(expandedHalfW, -expandedHalfH, 0.01);
-    vertex(expandedHalfW, expandedHalfH, 0.01);
-    vertex(-expandedHalfW, expandedHalfH, 0.01);
-    endShape(CLOSE);
-  }
-
-  // Render painting texture
+  // Render painting
   noStroke();
-  fill(255); // Render at full brightness
+  fill(255);
+
   texture(painting.texture);
   textureMode(NORMAL);
 
@@ -308,6 +297,25 @@ const renderPainting = (painting, isInteractable) => {
   vertex(halfW, halfH, 0, 1, 0);    // Bottom-right (flipped V)
   vertex(-halfW, halfH, 0, 0, 0);   // Bottom-left (flipped V)
   endShape(CLOSE);
+
+  // Add glowing overlay if interactable
+  if (isInteractable) {
+    blendMode(ADD);
+    const glowAlpha = map(glowStrength, 0.2, 0.6, 30, 80);
+    fill(255, 220, 100, glowAlpha); // Warm yellow glow
+    // Render without texture for solid color overlay
+    beginShape();
+    vertex(-halfW, -halfH, 0);
+    vertex(halfW, -halfH, 0);
+    vertex(halfW, halfH, 0);
+    vertex(-halfW, halfH, 0);
+    endShape(CLOSE);
+    blendMode(BLEND); // Reset blend mode
+  }
+
+  // Restore scene lighting for other objects
+  ambientLight(100);
+  directionalLight(200, 200, 200, 0, 1, 0);
 
   pop();
 };
@@ -389,27 +397,45 @@ const RenderSystem = (world, dt) => {
     renderLabel(label);
   });
 
-  // Render paintings
+  // Enable backface culling for paintings
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
+
+  // Render paintings with frustum culling
   const lightbox = typeof getLightboxState === 'function' ? getLightboxState() : null;
   const focusedEntity = lightbox ? lightbox.targetEntity : null;
 
   queryEntities(world, 'Painting').forEach(entity => {
+    const painting = entity.Painting;
+
+    // Frustum culling: skip if painting is outside view
+    if (!isPointVisible(painting.pos, cameraPos, cameraLookAt, CULLING_CONFIG.labelMaxDistance)) {
+      return; // Skip rendering this painting
+    }
+
     const isInteractable = entity.Interaction && entity.Interaction.isClosest;
     const isFocused = focusedEntity === entity;
     // Hide outline when painting is focused
     const showOutline = isInteractable && !isFocused;
-    renderPainting(entity.Painting, showOutline);
+    renderPainting(painting, showOutline);
   });
 
   // Enable backface culling for sculptures
   gl.enable(gl.CULL_FACE);
   gl.cullFace(gl.BACK);
 
-  // Render sculptures
+  // Render sculptures with frustum culling
   queryEntities(world, 'Sculpture').forEach(entity => {
+    const sculpture = entity.Sculpture;
+
+    // Frustum culling: skip if sculpture is outside view
+    if (!isPointVisible(sculpture.pos, cameraPos, cameraLookAt, CULLING_CONFIG.labelMaxDistance)) {
+      return; // Skip rendering this sculpture
+    }
+
     const isInteractable = entity.Interaction && entity.Interaction.isClosest;
     const isFocused = focusedEntity === entity;
-    renderSculpture(entity.Sculpture, isInteractable && !isFocused);
+    renderSculpture(sculpture, isInteractable && !isFocused);
   });
 
   pop();

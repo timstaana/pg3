@@ -3,7 +3,7 @@
 
 const CULLING_CONFIG = {
   maxRenderDistance: 50.0,    // Don't render objects beyond this distance
-  labelMaxDistance: 20.0,     // Labels fade out sooner
+  labelMaxDistance: 50.0,     // Labels fade out sooner
   frustumPadding: 2.0,        // Extra margin to prevent pop-in at edges
 };
 

@@ -71,9 +71,10 @@ async function setup() {
   player = result.player;
 
   // Load alpha cutout shader (with error handling for p5.js v2)
+  // p5.js v2 returns Promises from loadShader, so we need to await them
   try {
-    alphaCutoutShader = loadShader('shaders/alphaCutout.vert', 'shaders/alphaCutout.frag');
-    console.log('Shader loaded successfully');
+    alphaCutoutShader = await loadShader('shaders/alphaCutout.vert', 'shaders/alphaCutout.frag');
+    console.log('Alpha cutout shader loaded successfully');
   } catch (err) {
     console.warn('Shader failed to load, rendering without alpha cutout:', err);
     alphaCutoutShader = null;

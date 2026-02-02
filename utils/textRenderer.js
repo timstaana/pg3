@@ -143,6 +143,7 @@ const drawWorldText = (lines, worldPos, width, height, options = {}) => {
   rotateX(PI);
 
   noStroke();
+  noLights();
   texture(g);
   plane(planeWidth, planeHeight);
   pop();
