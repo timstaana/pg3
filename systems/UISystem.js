@@ -141,7 +141,7 @@ const setupUI = (onEmoteFired) => {
       transition: opacity 0.4s ease;
     }
     .pg-btn:active { background: rgba(255,255,255,0.18); }
-    #pg-skin-btn  { top: 14px; right: 14px; }
+    #pg-skin-btn  { top: 72px; right: 14px; }
     #pg-emote-btn { bottom: 14px; left: 50%; transform: translateX(-50%); }
 
     /* Full-screen tap-to-confirm overlay — active only in skin mode */

@@ -38,9 +38,14 @@ const normalizeStick = (state) => {
 };
 
 const onPointerDown = (e) => {
-  if (e.pointerType === 'mouse') return;
   if (e.target.closest('button')) return;  // let UI buttons handle their own events
   e.preventDefault();
+
+  // Right-click = jump
+  if (e.pointerType === 'mouse' && e.button === 2) {
+    touchState.jumpQueued = true;
+    return;
+  }
 
   // Second finger = jump
   if (touchState.active || touchState.pending) {
@@ -55,7 +60,6 @@ const onPointerDown = (e) => {
 };
 
 const onPointerMove = (e) => {
-  if (e.pointerType === 'mouse') return;
   e.preventDefault();
 
   // Update active joystick
@@ -83,7 +87,7 @@ const onPointerMove = (e) => {
 };
 
 const onPointerUp = (e) => {
-  if (e.pointerType === 'mouse') return;
+  if (e.pointerType === 'mouse' && e.button === 2) return; // right-click jump already fired on down
 
   // Release joystick
   if (touchState.active && e.pointerId === touchState.pointerId) {
@@ -117,8 +121,8 @@ const setupTouchListeners = () => {
   const canvas = document.querySelector('canvas');
   if (canvas) {
     canvas.style.touchAction = 'none';
-    canvas.addEventListener('contextmenu', e => e.preventDefault());
   }
+  document.addEventListener('contextmenu', e => e.preventDefault());
 
   const opts = { passive: false };
   document.addEventListener('pointerdown',   onPointerDown, opts);
