@@ -12,7 +12,7 @@ const JUMP_HEIGHT      = 1.5;
 const TERMINAL_VELOCITY = 20.0;
 const PLAYER_MOVE_SPEED = 5.0;
 const PLAYER_TURN_SPEED = 80.0;
-const PLAYER_RADIUS     = 0.35;
+const PLAYER_RADIUS     = 0.4;
 
 const CAMERA_CONFIG = {
   distance:      5.0,
