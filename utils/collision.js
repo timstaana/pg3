@@ -312,11 +312,10 @@ const parseOBJ = (objText) => {
         };
       });
 
-      if (indices.length === 3) {
-        faces.push(indices);
-      } else if (indices.length === 4) {
-        faces.push([indices[0], indices[1], indices[2]]);
-        faces.push([indices[0], indices[2], indices[3]]);
+      // Fan-triangulate: works for triangles, quads, and any n-gon.
+      // Convex polygons (cylinder caps, etc.) triangulate correctly this way.
+      for (let i = 1; i < indices.length - 1; i++) {
+        faces.push([indices[0], indices[i], indices[i + 1]]);
       }
     }
   });
