@@ -16,6 +16,9 @@ const setupInputListeners = () => {
     keys[e.key.toLowerCase()] = false;
   });
 
+  // Claim focus on any interaction so keyboard events reach the iframe
+  document.addEventListener('pointerdown', () => window.focus(), { capture: true });
+
   document.addEventListener('selectstart', e => e.preventDefault());
 };
 
