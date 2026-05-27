@@ -12,7 +12,7 @@
 // outside of the player, never cuts through.
 
 const SMOOTH         = 0.12;
-const IDLE_TIMEOUT   = 30;           // seconds
+const IDLE_TIMEOUT   = 15;           // seconds until camera returns to intro
 const BLEND_TO_GAME  = 0.08;
 const BLEND_TO_INTRO = 0.04;
 
@@ -36,7 +36,7 @@ const SKIN_BLEND   = 0.12;   // blend rate in/out
 let cameraMode  = 'intro';
 let idleTimer   = 0;
 let cameraBlend = 0;   // 0 = intro, 1 = gameplay
-let skinBlend   = 0;   // 0 = off,   1 = skin preview active
+let skinBlend        = 0;   // 0 = off,   1 = skin preview active
 
 const cameraRig = {
   eyeX: 0, eyeY: 0, eyeZ: 0,
@@ -88,6 +88,9 @@ const CameraSystem = (world, collisionWorld, dt) => {
 
   const b  = cameraBlend;
   const bi = 1 - b;
+
+  // Buttons visible in gameplay, hidden in intro — driven entirely by cameraBlend
+  if (typeof uiState !== 'undefined') uiState.buttonFade = 1 - b;
 
   // ── Arc angle: sweeps around the outside of the player ───────────────────
   const yawRad  = radians(-rot.y);

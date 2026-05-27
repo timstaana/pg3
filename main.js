@@ -292,6 +292,7 @@ function draw() {
   RenderSystem(world, collisionWorld, dt);
   EmoteSystem(dt);
   TouchJoystickRenderSystem(world, dt, getTouchState());
+  updateUI(); // apply Bayer dither fade to buttons based on uiState.buttonFade
 
   // Update FPS counter every 30 frames
   if (frameCount % 30 === 0) {

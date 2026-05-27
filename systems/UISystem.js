@@ -34,6 +34,24 @@ const uiState = {
   skinPreview:   false,   // CameraSystem zooms to full-body when true
   selectedSkin:  0,
   selectedEmote: 0,
+  buttonFade:    1,       // 0 = visible, 1 = hidden; starts at 1 (hidden during intro)
+};
+
+// ── Button fade ───────────────────────────────────────────────────────────────
+// updateUI() is called every draw frame. It maps uiState.buttonFade → CSS opacity
+// and only writes to the DOM when the value actually changes.
+// CSS transition on .pg-btn handles the smooth interpolation.
+
+let _lastFadeOpacity = -1;
+
+const updateUI = () => {
+  const opacity = Math.max(0, Math.min(1, 1 - (uiState.buttonFade || 0)));
+  if (Math.abs(opacity - _lastFadeOpacity) < 0.005) return;
+  _lastFadeOpacity = opacity;
+  for (const id of ['pg-skin-btn', 'pg-emote-btn']) {
+    const btn = document.getElementById(id);
+    if (btn) btn.style.opacity = opacity;
+  }
 };
 
 // ── Setup (call once from main.js setup) ──────────────────────────────────────
@@ -55,7 +73,8 @@ const setupUI = (onEmoteFired) => {
       touch-action: none;
       user-select: none; -webkit-user-select: none;
       z-index: 200;
-      transition: opacity 0.18s;
+      opacity: 0;
+      transition: opacity 0.4s ease;
     }
     .pg-btn:active { background: rgba(255,255,255,0.18); }
     #pg-skin-btn  { top: 14px; right: 14px; }
