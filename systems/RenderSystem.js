@@ -136,7 +136,7 @@ const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex) => {
 // ─── Main render pass ─────────────────────────────────────────────────────
 
 const RenderSystem = (world, collisionWorld, dt) => {
-  background(20);
+  background(255);
 
   push();
   scale(WORLD_SCALE, -WORLD_SCALE, WORLD_SCALE); // Y-up → p5 Y-down

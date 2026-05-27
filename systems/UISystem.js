@@ -131,6 +131,7 @@ const setupUI = (onEmoteFired) => {
       border-radius: 14px;
       color: #fff; font-size: 24px;
       width: 54px; height: 54px;
+      padding: 0;
       display: flex; align-items: center; justify-content: center;
       cursor: pointer;
       touch-action: none;
@@ -161,16 +162,17 @@ const setupUI = (onEmoteFired) => {
       backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
       border: 1px solid rgba(255,255,255,0.18);
       border-radius: 50%;
-      color: #fff; font-size: 38px; line-height: 1;
+      color: #fff; font-size: 38px;
       width: 64px; height: 64px;
+      padding: 0;
       display: none; align-items: center; justify-content: center;
       cursor: pointer; touch-action: none;
       user-select: none; -webkit-user-select: none;
       transition: background 0.12s;
     }
     .pg-skin-arrow:active { background: rgba(255,255,255,0.22); }
-    #pg-skin-prev { left:  14px; }
-    #pg-skin-next { right: 14px; }
+    #pg-skin-prev { left:  max(14px, calc(50% - 700px + 14px)); }
+    #pg-skin-next { right: max(14px, calc(50% - 700px + 14px)); }
 
     /* Emote picker — column above emote button */
     #pg-emote-picker {

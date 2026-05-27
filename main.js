@@ -70,6 +70,7 @@ let PLAYER_BACK_TEX;
 // for remote players so each player shows their own chosen skin.
 const SKIN_TEXTURES = {}; // { skinId: { front: p5.Image, back: p5.Image } }
 let fpsDiv;
+let showFps = false;
 
 // ========== Level Builder ==========
 
@@ -204,7 +205,8 @@ async function setup() {
     'position:fixed', 'top:8px', 'left:8px', 'color:#fff',
     'font:13px monospace', 'background:rgba(0,0,0,0.5)',
     'padding:4px 8px', 'border-radius:4px',
-    'pointer-events:none', 'z-index:100'
+    'pointer-events:none', 'z-index:100',
+    'display:none'
   ].join(';');
   document.body.appendChild(fpsDiv);
 
@@ -273,7 +275,7 @@ async function setup() {
 // ========== Game Loop ==========
 
 function draw() {
-  if (!world || !player) { background(20); return; }
+  if (!world || !player) { background(255); return; }
 
   const now = millis() / 1000;
   const dt  = constrain(now - lastTime, 0, 0.033);
@@ -294,8 +296,14 @@ function draw() {
   TouchJoystickRenderSystem(world, dt, getTouchState());
   updateUI(); // apply Bayer dither fade to buttons based on uiState.buttonFade
 
+  // Backtick toggles FPS counter
+  if (keysPressed['`']) {
+    showFps = !showFps;
+    fpsDiv.style.display = showFps ? '' : 'none';
+  }
+
   // Update FPS counter every 30 frames
-  if (frameCount % 30 === 0) {
+  if (showFps && frameCount % 30 === 0) {
     fpsDiv.textContent = `${round(frameRate())} fps`;
   }
 }
