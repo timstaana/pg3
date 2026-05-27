@@ -114,8 +114,9 @@ const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex) => {
 
   if (alphaCutoutShader) {
     shader(alphaCutoutShader);
-    alphaCutoutShader.setUniform('uTexture', tex);
+    alphaCutoutShader.setUniform('uTexture',    tex);
     alphaCutoutShader.setUniform('uAlphaCutoff', 0.1);
+    alphaCutoutShader.setUniform('uFadeAlpha',   1.0);
   }
 
   beginShape();
@@ -166,7 +167,11 @@ const RenderSystem = (world, collisionWorld, dt) => {
 
   queryEntities(world, 'NetworkedPlayer', 'Transform', 'Animation').forEach(entity => {
     const { Transform: { pos, rot }, Animation: anim, NetworkedPlayer: nd } = entity;
-    renderCharacterSprite(pos, rot, anim, nd.radius, PLAYER_FRONT_TEX, PLAYER_BACK_TEX);
+    // Look up this remote player's chosen skin; fall back to local player textures
+    const skinTexs = (SKIN_TEXTURES && nd.skinId && SKIN_TEXTURES[nd.skinId])
+      ? SKIN_TEXTURES[nd.skinId]
+      : { front: PLAYER_FRONT_TEX, back: PLAYER_BACK_TEX };
+    renderCharacterSprite(pos, rot, anim, nd.radius, skinTexs.front, skinTexs.back);
   });
 
   pop();

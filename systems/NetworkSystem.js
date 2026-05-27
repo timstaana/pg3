@@ -171,6 +171,10 @@ const handleMessage = (msg) => {
     case 'player_state':
       updateRemotePlayer(msg.playerId, msg.state);
       break;
+
+    case 'emote':
+      spawnEmote(msg.wx, msg.wy, msg.wz, msg.emoteId);
+      break;
   }
 };
 
@@ -185,8 +189,9 @@ const getLocalState = () => {
   const yaw = player.Transform.rot.y;
 
   return {
-    pos: { x: pos.x.toFixed(2), y: pos.y.toFixed(2), z: pos.z.toFixed(2) },
-    yaw: yaw.toFixed(1)
+    pos:  { x: pos.x.toFixed(2), y: pos.y.toFixed(2), z: pos.z.toFixed(2) },
+    yaw:  yaw.toFixed(1),
+    skin: SKINS[uiState.selectedSkin].id   // broadcast chosen skin to others
   };
 };
 
@@ -205,7 +210,8 @@ const sendState = () => {
     state.pos.x !== lastState.pos.x ||
     state.pos.y !== lastState.pos.y ||
     state.pos.z !== lastState.pos.z ||
-    state.yaw !== lastState.yaw;
+    state.yaw   !== lastState.yaw   ||
+    state.skin  !== lastState.skin;
 
   if (changed) {
     send({ type: 'state', state });
@@ -240,7 +246,8 @@ const createRemotePlayer = (playerId, state) => {
       lastUpdate: Date.now(),
       radius: PLAYER_RADIUS,
       isMoving: false,
-      isTurning: false
+      isTurning: false,
+      skinId: state.skin || SKINS[0].id   // use their skin, fall back to default
     }
   });
 
@@ -266,6 +273,9 @@ const updateRemotePlayer = (playerId, state) => {
   }
   if (state.yaw !== undefined) {
     net.targetYaw = parseFloat(state.yaw);
+  }
+  if (state.skin) {
+    net.skinId = state.skin;
   }
 
   net.lastUpdate = Date.now();
@@ -319,3 +329,8 @@ const disableMultiplayer = () => {
 
 const getNetworkState = () => networkState;
 const isMultiplayerEnabled = () => networkState.connected;
+
+// Broadcast an emote to everyone else in the room
+const sendEmote = (wx, wy, wz, emoteId) => {
+  send({ type: 'emote', wx, wy, wz, emoteId });
+};

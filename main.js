@@ -65,6 +65,10 @@ let lastTime = 0;
 
 let PLAYER_FRONT_TEX;
 let PLAYER_BACK_TEX;
+
+// All skin textures keyed by skin id — populated in setup(), used by RenderSystem
+// for remote players so each player shows their own chosen skin.
+const SKIN_TEXTURES = {}; // { skinId: { front: p5.Image, back: p5.Image } }
 let fpsDiv;
 
 // ========== Level Builder ==========
@@ -212,13 +216,33 @@ async function setup() {
   buildLevel();
   await loadModels(); // no-op when LEVEL_MODELS is empty
 
-  // Load player sprites
-  PLAYER_FRONT_TEX = await new Promise((res, rej) =>
-    loadImage('assets/player_front.png', res, rej)
-  );
-  PLAYER_BACK_TEX = await new Promise((res, rej) =>
-    loadImage('assets/player_back.png', res, rej)
-  );
+  // Set up UI overlay (skin + emote buttons)
+  setupUI((emoteId) => {
+    const ps = queryEntities(world, 'Player', 'Transform');
+    if (ps.length > 0) {
+      const pos = ps[0].Transform.pos;
+      const wx = pos.x, wy = pos.y + 1.3, wz = pos.z;
+      spawnEmote(wx, wy, wz, emoteId);
+      sendEmote(wx, wy, wz, emoteId);
+    }
+  });
+
+  // Load emote textures (must run after p5 canvas is created)
+  await loadEmoteTextures();
+
+  // Pre-load all skin textures so remote players can display their chosen skin
+  for (const skin of SKINS) {
+    const [front, back] = await Promise.all([
+      new Promise((res, rej) => loadImage(skin.front, res, rej)),
+      new Promise((res, rej) => loadImage(skin.back,  res, rej)),
+    ]);
+    SKIN_TEXTURES[skin.id] = { front, back };
+  }
+
+  // Initialise local player textures from the default skin
+  const defaultSkin = SKIN_TEXTURES[SKINS[0].id];
+  PLAYER_FRONT_TEX = defaultSkin.front;
+  PLAYER_BACK_TEX  = defaultSkin.back;
 
   // Load alpha-cutout shader (for transparent sprite edges)
   try {
@@ -266,6 +290,7 @@ function draw() {
   AnimationSystem(world, dt);
   CameraSystem(world, collisionWorld, dt);
   RenderSystem(world, collisionWorld, dt);
+  EmoteSystem(dt);
   TouchJoystickRenderSystem(world, dt, getTouchState());
 
   // Update FPS counter every 30 frames

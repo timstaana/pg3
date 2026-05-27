@@ -39,6 +39,7 @@ const normalizeStick = (state) => {
 
 const onPointerDown = (e) => {
   if (e.pointerType === 'mouse') return;
+  if (e.target.closest('button')) return;  // let UI buttons handle their own events
   e.preventDefault();
 
   // Second finger = jump

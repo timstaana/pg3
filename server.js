@@ -94,6 +94,19 @@ wss.on('connection', (ws) => {
             broadcast(room, { type: 'player_state', playerId, state: msg.state }, playerId);
           }
           break;
+
+        case 'emote':
+          if (room && playerId) {
+            broadcast(room, {
+              type:    'emote',
+              playerId,
+              wx:      msg.wx,
+              wy:      msg.wy,
+              wz:      msg.wz,
+              emoteId: msg.emoteId,
+            }, playerId);
+          }
+          break;
       }
     } catch (err) {
       console.error('Message error:', err);
