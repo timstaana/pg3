@@ -12,6 +12,7 @@ const JUMP_HEIGHT      = 1.5;
 const TERMINAL_VELOCITY = 20.0;
 const PLAYER_MOVE_SPEED = 5.0;
 const PLAYER_TURN_SPEED = 80.0;
+const PLAYER_RADIUS     = 0.35;
 
 const CAMERA_CONFIG = {
   distance:      5.0,
@@ -75,7 +76,7 @@ const buildLevel = () => {
 
   player = createEntity(world, {
     Player: {
-      radius:     0.4,
+      radius:     PLAYER_RADIUS,
       grounded:   false,
       groundNormal: createVector(0, 1, 0),
       jumpSpeed,

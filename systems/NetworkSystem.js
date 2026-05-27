@@ -238,7 +238,7 @@ const createRemotePlayer = (playerId, state) => {
       targetYaw: parseFloat(state.yaw) || 0,
       lerpSpeed: 10.0,
       lastUpdate: Date.now(),
-      radius: 0.35,
+      radius: PLAYER_RADIUS,
       isMoving: false,
       isTurning: false
     }
