@@ -12,6 +12,10 @@ const setupInputListeners = () => {
   window.addEventListener('keyup', e => {
     keys[e.key.toLowerCase()] = false;
   });
+
+  // Prevent iOS text-selection bubble from appearing during touch input.
+  // selectstart fires right before the browser draws the selection UI.
+  document.addEventListener('selectstart', e => e.preventDefault());
 };
 
 const InputSystem = (world, dt) => {

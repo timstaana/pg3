@@ -191,9 +191,7 @@ async function setup() {
     canvas.style.webkitTapHighlightColor = 'transparent';
     canvas.addEventListener('contextmenu', e => e.preventDefault());
     canvas.addEventListener('dragstart',   e => e.preventDefault());
-    canvas.addEventListener('touchstart',  e => {
-      if (e.touches.length > 1) e.preventDefault();
-    }, { passive: false });
+    canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
   }
 
   // Simple FPS display

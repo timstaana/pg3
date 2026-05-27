@@ -141,10 +141,10 @@ const TouchInputSystem = (world, dt) => {
     input.turn    = 0;
     input.jump    = false;
 
-    // Apply joystick: X = turn, Y = forward (inverted)
+    // Apply joystick: turn flips when reversing so steering stays natural.
     if (touchState.active) {
-      input.turn    = touchState.stick.x;
       input.forward = -touchState.stick.y;
+      input.turn    = touchState.stick.x * Math.sign(input.forward || 1);
     }
 
     // Consume queued jump
