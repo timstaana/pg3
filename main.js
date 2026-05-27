@@ -31,7 +31,7 @@ const MULTIPLAYER = {
   room:      'basic'
 };
 
-const SPAWN_POS = [0, 3, 0];
+const SPAWN_POS = [0, 0.1, 0];
 const SPAWN_YAW = 0;
 
 // ========== OBJ Model Definition ==========
@@ -266,7 +266,7 @@ function draw() {
   RespawnSystem(world, dt);
   NetworkSystem(world, dt);
   AnimationSystem(world, dt);
-  CameraSystem(world, collisionWorld);
+  CameraSystem(world, collisionWorld, dt);
   RenderSystem(world, collisionWorld, dt);
   TouchJoystickRenderSystem(world, dt, getTouchState());
 
