@@ -137,10 +137,16 @@ const TouchInputSystem = (world, dt) => {
   players.forEach(player => {
     const { Input: input } = player;
 
-    // Reset (keyboard input will override if pressed)
+    // Always reset
     input.forward = 0;
     input.turn    = 0;
     input.jump    = false;
+
+    // Block all movement while the skin selector is open
+    if (typeof uiState !== 'undefined' && uiState.skinPreview) {
+      touchState.jumpQueued = false; // discard any queued jump too
+      return;
+    }
 
     // Apply joystick: turn flips when reversing so steering stays natural.
     if (touchState.active) {

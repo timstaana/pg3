@@ -19,6 +19,12 @@ const setupInputListeners = () => {
 };
 
 const InputSystem = (world, dt) => {
+  // Block all keyboard input while the skin selector is open
+  if (typeof uiState !== 'undefined' && uiState.skinPreview) {
+    Object.keys(keysPressed).forEach(k => { keysPressed[k] = false; });
+    return;
+  }
+
   const players = queryEntities(world, 'Player', 'Input', 'Transform');
 
   players.forEach(player => {

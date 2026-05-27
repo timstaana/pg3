@@ -1,12 +1,14 @@
 // UISystem.js — Skin selector + Emote picker UI overlay
 //
-// Skin button  (top-right)    → opens skin preview camera; left/right cycle skins
-// Emote button (bottom-right) → tap = fire current emote; hold = open picker
+// Skin mode  (skin button, top-right):
+//   • Hides all other buttons
+//   • Shows ‹ › arrows pinned to the left / right screen edges (vertically centred)
+//   • Tap the centre (anywhere that isn't an arrow) → confirm & return to game
+//   • Movement is blocked while skin mode is active (see TouchInputSystem / InputSystem)
 //
-// uiState is a global read by CameraSystem (skinPreview flag) and main.js.
+// Emote button (bottom-right): tap = fire current emote; hold = open picker
 
-// ── Helper ────────────────────────────────────────────────────────────────────
-// Creates a DOM element with attributes and optional innerHTML.
+// ── Helper ─────────────────────────────────────────────────────────────────────
 const el = (tag, attrs = {}, html = '') => {
   const node = document.createElement(tag);
   Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
@@ -14,7 +16,7 @@ const el = (tag, attrs = {}, html = '') => {
   return node;
 };
 
-// ── Game data ─────────────────────────────────────────────────────────────────
+// ── Game data ──────────────────────────────────────────────────────────────────
 
 const SKINS = [
   { id: 'skin1', label: 'Skin 1', front: 'assets/player_01_front.png', back: 'assets/player_01_back.png' },
@@ -26,19 +28,19 @@ const EMOTES = [
   { id: 'emote_2', label: 'Bunny 2', src: 'assets/emote_02.png' },
 ];
 
-// ── Shared state (read by CameraSystem, NetworkSystem, etc.) ─────────────────
+// ── Shared state (read by CameraSystem, NetworkSystem, etc.) ──────────────────
 
 const uiState = {
-  skinPreview:   false,  // CameraSystem zooms to full-body when true
+  skinPreview:   false,   // CameraSystem zooms to full-body when true
   selectedSkin:  0,
   selectedEmote: 0,
 };
 
-// ── Setup (call once from main.js setup) ─────────────────────────────────────
+// ── Setup (call once from main.js setup) ──────────────────────────────────────
 
 const setupUI = (onEmoteFired) => {
 
-  // ── Styles ─────────────────────────────────────────────────────────────────
+  // ── Styles ────────────────────────────────────────────────────────────────
   document.head.appendChild(el('style', {}, `
     .pg-btn {
       position: fixed;
@@ -53,61 +55,46 @@ const setupUI = (onEmoteFired) => {
       touch-action: none;
       user-select: none; -webkit-user-select: none;
       z-index: 200;
+      transition: opacity 0.18s;
     }
     .pg-btn:active { background: rgba(255,255,255,0.18); }
     #pg-skin-btn  { top: 14px; right: 14px; }
     #pg-emote-btn { bottom: 110px; right: 14px; }
 
-    /* Skin panel — slides up from bottom */
-    #pg-skin-panel {
+    /* Full-screen tap-to-confirm overlay — active only in skin mode */
+    #pg-skin-overlay {
       position: fixed; inset: 0;
-      display: flex; align-items: flex-end;
-      z-index: 400; pointer-events: none;
-    }
-    #pg-skin-inner {
-      width: 100%;
-      padding: 20px 24px 44px;
-      background: rgba(8,8,8,0.85);
-      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-      border-top: 1px solid rgba(255,255,255,0.1);
-      display: flex; align-items: center; justify-content: center; gap: 28px;
-      pointer-events: auto;
+      z-index: 300;
+      display: none;
       touch-action: none;
-      transform: translateY(100%);
-      transition: transform 0.32s cubic-bezier(0.22,1,0.36,1);
     }
-    #pg-skin-panel.open #pg-skin-inner { transform: translateY(0); }
+    #pg-skin-overlay.open { display: block; }
 
-    .pg-arrow {
-      background: rgba(255,255,255,0.1);
+    /* Side arrows — shown only in skin mode */
+    .pg-skin-arrow {
+      position: fixed;
+      top: 50%; transform: translateY(-50%);
+      z-index: 400;
+      background: rgba(0,0,0,0.50);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
       border: 1px solid rgba(255,255,255,0.18);
       border-radius: 50%;
-      color: #fff; font-size: 28px;
-      width: 52px; height: 52px;
-      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 38px; line-height: 1;
+      width: 64px; height: 64px;
+      display: none; align-items: center; justify-content: center;
       cursor: pointer; touch-action: none;
       user-select: none; -webkit-user-select: none;
+      transition: background 0.12s;
     }
-    .pg-arrow:active { background: rgba(255,255,255,0.25); }
-
-    #pg-skin-label {
-      color: #fff;
-      font: 600 18px/1 -apple-system, BlinkMacSystemFont, sans-serif;
-      letter-spacing: 0.02em;
-      min-width: 100px; text-align: center;
-    }
-    #pg-skin-close {
-      position: absolute; top: 14px; right: 18px;
-      background: none; border: none;
-      color: rgba(255,255,255,0.45); font-size: 20px;
-      cursor: pointer; touch-action: none;
-    }
+    .pg-skin-arrow:active { background: rgba(255,255,255,0.22); }
+    #pg-skin-prev { left:  14px; }
+    #pg-skin-next { right: 14px; }
 
     /* Emote picker — column above emote button */
     #pg-emote-picker {
       position: fixed; right: 14px; bottom: 174px;
       display: flex; flex-direction: column-reverse; gap: 8px;
-      z-index: 300; pointer-events: none;
+      z-index: 200; pointer-events: none;
       opacity: 0; transform: translateY(10px);
       transition: opacity 0.18s, transform 0.18s;
     }
@@ -126,13 +113,10 @@ const setupUI = (onEmoteFired) => {
     .pg-emote-opt:active   { transform: scale(0.88); }
   `));
 
-  // ── Skin button ────────────────────────────────────────────────────────────
-  // Show only the first frame of the sprite sheet.
-  // background-size:300% 100% spreads the 3-frame sheet across 3× the container
-  // width so the leftmost frame fills the button exactly.
+  // ── Skin button (top-right) ────────────────────────────────────────────────
   const SKIN_FRAMES = 3;
-  const skinBtn    = el('button', { id: 'pg-skin-btn', class: 'pg-btn' });
-  const skinBtnImg = el('div', { style: [
+  const skinBtn     = el('button', { id: 'pg-skin-btn', class: 'pg-btn' });
+  const skinBtnImg  = el('div', { style: [
     'width:40px', 'height:40px',
     `background-image:url(${SKINS[0].front})`,
     `background-size:${SKIN_FRAMES * 100}% 100%`,
@@ -144,36 +128,59 @@ const setupUI = (onEmoteFired) => {
   skinBtn.appendChild(skinBtnImg);
   document.body.appendChild(skinBtn);
 
-  // ── Skin panel ─────────────────────────────────────────────────────────────
-  const skinPanel = el('div', { id: 'pg-skin-panel' }, `
-    <div id="pg-skin-inner">
-      <button class="pg-arrow" id="pg-skin-prev">‹</button>
-      <span id="pg-skin-label">${SKINS[0].label}</span>
-      <button class="pg-arrow" id="pg-skin-next">›</button>
-      <button id="pg-skin-close">✕</button>
-    </div>
-  `);
-  document.body.appendChild(skinPanel);
+  // ── Full-screen tap-to-confirm overlay ────────────────────────────────────
+  const skinOverlay = el('div', { id: 'pg-skin-overlay' });
+  document.body.appendChild(skinOverlay);
 
-  const skinLabel = document.getElementById('pg-skin-label');
+  // ── Side arrow buttons ─────────────────────────────────────────────────────
+  const prevBtn = el('button', { id: 'pg-skin-prev', class: 'pg-skin-arrow' }, '‹');
+  const nextBtn = el('button', { id: 'pg-skin-next', class: 'pg-skin-arrow' }, '›');
+  document.body.appendChild(prevBtn);
+  document.body.appendChild(nextBtn);
 
-  const openSkin  = () => { uiState.skinPreview = true;  skinPanel.classList.add('open'); };
-  const closeSkin = () => { uiState.skinPreview = false; skinPanel.classList.remove('open'); };
+  // ── Open / close helpers ───────────────────────────────────────────────────
+
+  const openSkin = () => {
+    uiState.skinPreview = true;
+    skinBtn.style.display  = 'none';
+    emoteBtn.style.display = 'none';
+    emotePicker.classList.remove('open');
+    skinOverlay.classList.add('open');
+    prevBtn.style.display = 'flex';
+    nextBtn.style.display = 'flex';
+  };
+
+  const closeSkin = () => {
+    uiState.skinPreview = false;
+    skinBtn.style.display  = '';
+    emoteBtn.style.display = '';
+    skinOverlay.classList.remove('open');
+    prevBtn.style.display = 'none';
+    nextBtn.style.display = 'none';
+  };
+
+  // ── Skin cycling ───────────────────────────────────────────────────────────
+
   const cycleSkin = (dir) => {
     uiState.selectedSkin = (uiState.selectedSkin + dir + SKINS.length) % SKINS.length;
     const skin = SKINS[uiState.selectedSkin];
-    skinLabel.textContent = skin.label;
     skinBtnImg.style.backgroundImage = `url(${skin.front})`;
 
-    // Swap the live player textures so the in-world sprite updates immediately
+    // Swap live player textures so the in-world sprite updates immediately
     loadImage(skin.front, img => { PLAYER_FRONT_TEX = img; });
     loadImage(skin.back,  img => { PLAYER_BACK_TEX  = img; });
   };
 
+  // ── Event listeners ────────────────────────────────────────────────────────
+
   skinBtn.addEventListener('pointerdown', e => { e.preventDefault(); openSkin(); });
-  document.getElementById('pg-skin-close').addEventListener('pointerdown', e => { e.preventDefault(); closeSkin(); });
-  document.getElementById('pg-skin-prev').addEventListener('pointerdown',  e => { e.preventDefault(); cycleSkin(-1); });
-  document.getElementById('pg-skin-next').addEventListener('pointerdown',  e => { e.preventDefault(); cycleSkin(+1); });
+
+  // Tap centre → confirm skin
+  skinOverlay.addEventListener('pointerdown', e => { e.preventDefault(); closeSkin(); });
+
+  // Arrow buttons — stop propagation so they don't also close the overlay
+  prevBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); cycleSkin(-1); });
+  nextBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); cycleSkin(+1); });
 
   // ── Emote picker ───────────────────────────────────────────────────────────
   const emotePicker = el('div', { id: 'pg-emote-picker' });
@@ -204,8 +211,7 @@ const setupUI = (onEmoteFired) => {
     }
   }, true);
 
-  // ── Emote button ───────────────────────────────────────────────────────────
-  // Must be appended AFTER emotePicker so it sits on top in stacking order.
+  // ── Emote button (appended after picker so it sits on top) ────────────────
   const emoteBtn    = el('button', { id: 'pg-emote-btn', class: 'pg-btn' });
   const emoteBtnImg = el('img', { src: EMOTES[0].src, style: 'width:38px;height:38px;object-fit:contain;pointer-events:none' });
   emoteBtn.appendChild(emoteBtnImg);
