@@ -184,6 +184,10 @@ const loadModels = async () => {
 // ========== Setup ==========
 
 async function setup() {
+  // Animate the ASCII spinner while assets load
+  const _loadEl  = document.getElementById('pg-loading');
+  const _spinTimer = null;
+
   createCanvas(windowWidth, windowHeight, WEBGL);
 
   // Prevent iOS long-press / drag / zoom gestures on canvas
@@ -258,6 +262,12 @@ async function setup() {
   }
 
   lastTime = millis() / 1000;
+
+  // Dismiss loading screen
+  if (_loadEl) {
+    _loadEl.style.opacity = '0';
+    setTimeout(() => _loadEl.remove(), 300);
+  }
 
   // Connect multiplayer
   if (MULTIPLAYER.enabled) {

@@ -174,27 +174,42 @@ const setupUI = (onEmoteFired) => {
     #pg-skin-prev { left:  max(14px, calc(50% - 700px + 14px)); }
     #pg-skin-next { right: max(14px, calc(50% - 700px + 14px)); }
 
-    /* Emote picker — column above emote button */
+    /* Emote radial picker — zero-size anchor positioned at button centre */
     #pg-emote-picker {
-      position: fixed; left: 50%; transform: translateX(-50%); bottom: 78px;
-      display: flex; flex-direction: column-reverse; gap: 8px;
-      z-index: 200; pointer-events: none;
-      opacity: 0; transform: translateY(10px);
-      transition: opacity 0.18s, transform 0.18s;
+      position: fixed;
+      width: 0; height: 0;
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
     }
-    #pg-emote-picker.open { opacity: 1; transform: none; pointer-events: auto; }
+    #pg-emote-picker.open { opacity: 1; }
 
     .pg-emote-opt {
+      position: absolute;
+      width: 52px; height: 52px;
+      padding: 0;
       background: rgba(0,0,0,0.65);
       backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 12px; font-size: 26px;
-      width: 50px; height: 50px;
+      border: 1.5px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
       display: flex; align-items: center; justify-content: center;
       cursor: pointer; touch-action: none;
+      transform: translate(-50%, -50%) scale(0.5);
+      transition: transform 0.18s, border-color 0.1s, background 0.1s;
+      pointer-events: none;
     }
-    .pg-emote-opt.selected { border-color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.1); }
-    .pg-emote-opt:active   { transform: scale(0.88); }
+    #pg-emote-picker.open .pg-emote-opt {
+      transform: translate(-50%, -50%) scale(1);
+      pointer-events: auto;
+    }
+    .pg-emote-opt.selected {
+      border-color: rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.12);
+    }
+    #pg-emote-picker.open .pg-emote-opt.selected {
+      transform: translate(-50%, -50%) scale(1.15);
+    }
   `));
 
   // ── Skin button (top-right) ────────────────────────────────────────────────
@@ -271,7 +286,7 @@ const setupUI = (onEmoteFired) => {
     loadImage(skin.back,  img => { PLAYER_BACK_TEX  = img; });
   };
 
-  // ── Emote picker ───────────────────────────────────────────────────────────
+  // ── Emote picker (radial) ──────────────────────────────────────────────────
   const emotePicker = el('div', { id: 'pg-emote-picker' });
 
   // Shared emote-selection logic used by both touch and keyboard paths
@@ -287,56 +302,109 @@ const setupUI = (onEmoteFired) => {
     setEmote((uiState.selectedEmote + dir + EMOTES.length) % EMOTES.length);
   };
 
+  // Build radial options — evenly fanned above the button (centred at 270°)
+  const RADIAL_R   = 74;
+  const _emoteAngles = [];
+  const N = EMOTES.length;
+
   EMOTES.forEach((emote, i) => {
-    const btn = el('button', { class: 'pg-emote-opt' + (i === 0 ? ' selected' : '') });
-    btn.appendChild(el('img', { src: emote.src, style: 'width:34px;height:34px;object-fit:contain;pointer-events:none' }));
-    btn.addEventListener('pointerdown', e => {
-      e.preventDefault(); e.stopPropagation();
-      setEmote(i);
-      closePicker();
+    const spread   = Math.min(180, 60 * (N - 1) + 60); // 120° for 2, 180° for 3+
+    const startDeg = 270 - spread / 2;
+    const angleDeg = N === 1 ? 270 : startDeg + i * (spread / (N - 1));
+    const angleRad = angleDeg * Math.PI / 180;
+    _emoteAngles.push(angleRad);
+
+    const x = Math.round(Math.cos(angleRad) * RADIAL_R);
+    const y = Math.round(Math.sin(angleRad) * RADIAL_R);
+
+    const btn = el('button', {
+      class: 'pg-emote-opt' + (i === 0 ? ' selected' : ''),
+      style: `left:${x}px;top:${y}px`
     });
+    btn.appendChild(el('img', { src: emote.src, style: 'width:34px;height:34px;object-fit:contain;pointer-events:none' }));
     emotePicker.appendChild(btn);
   });
   document.body.appendChild(emotePicker);
 
-  const openPicker = () => {
-    emotePicker.classList.add('open');
-    uiState.emotePickerOpen = true;
-  };
-  const closePicker = () => {
-    emotePicker.classList.remove('open');
-    uiState.emotePickerOpen = false;
-    _ePickerOpen            = false;  // keep keyboard state in sync
-  };
-
-  // Close picker on outside tap
-  document.addEventListener('pointerdown', e => {
-    if (emotePicker.classList.contains('open') &&
-        !emotePicker.contains(e.target) && e.target !== emoteBtn) {
-      closePicker();
-    }
-  }, true);
-
-  // ── Emote button (appended after picker so it sits on top) ────────────────
+  // ── Emote button ───────────────────────────────────────────────────────────
   const emoteBtn    = el('button', { id: 'pg-emote-btn', class: 'pg-btn' });
   const emoteBtnImg = el('img', { src: EMOTES[0].src, style: 'width:38px;height:38px;object-fit:contain;pointer-events:none' });
   emoteBtn.appendChild(emoteBtnImg);
   document.body.appendChild(emoteBtn);
 
+  // ── Picker open / close + drag tracking ───────────────────────────────────
+
+  // Shortest angular distance between two angles (radians), result in [0, π]
+  const _angleDiff = (a, b) =>
+    Math.abs(((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+
+  const onDragMove = e => {
+    const cx = parseFloat(emotePicker.style.left);
+    const cy = parseFloat(emotePicker.style.top);
+    const dx = e.clientX - cx;
+    const dy = e.clientY - cy;
+    if (Math.hypot(dx, dy) < 24) return; // dead zone — near centre = no change
+
+    const angle = Math.atan2(dy, dx);
+    let bestIdx = 0, bestDiff = Infinity;
+    _emoteAngles.forEach((a, i) => {
+      const d = _angleDiff(angle, a);
+      if (d < bestDiff) { bestDiff = d; bestIdx = i; }
+    });
+    setEmote(bestIdx);
+  };
+
+  const onDragEnd = () => {
+    document.removeEventListener('pointermove', onDragMove);
+    document.removeEventListener('pointerup',   onDragEnd);
+    held = false;
+    closePicker();
+    if (onEmoteFired) onEmoteFired(EMOTES[uiState.selectedEmote].id);
+  };
+
+  const openPicker = () => {
+    const r = emoteBtn.getBoundingClientRect();
+    emotePicker.style.left = (r.left + r.width  / 2) + 'px';
+    emotePicker.style.top  = (r.top  + r.height / 2) + 'px';
+    emotePicker.classList.add('open');
+    uiState.emotePickerOpen = true;
+  };
+
+  const closePicker = () => {
+    emotePicker.classList.remove('open');
+    uiState.emotePickerOpen = false;
+    _ePickerOpen = false;
+    document.removeEventListener('pointermove', onDragMove);
+    document.removeEventListener('pointerup',   onDragEnd);
+  };
+
+  // ── Emote button touch listeners ───────────────────────────────────────────
   let holdTimer = null;
   let held      = false;
 
   emoteBtn.addEventListener('pointerdown', e => {
     e.preventDefault();
     held      = false;
-    holdTimer = setTimeout(() => { held = true; openPicker(); }, 320);
+    holdTimer = setTimeout(() => {
+      held = true;
+      openPicker();
+      document.addEventListener('pointermove', onDragMove);
+      document.addEventListener('pointerup',   onDragEnd);
+    }, 320);
   });
+
   emoteBtn.addEventListener('pointerup', e => {
     e.preventDefault();
     clearTimeout(holdTimer);
     if (!held && onEmoteFired) onEmoteFired(EMOTES[uiState.selectedEmote].id);
+    // held case: onDragEnd fires via document pointerup
   });
-  emoteBtn.addEventListener('pointercancel', () => clearTimeout(holdTimer));
+
+  emoteBtn.addEventListener('pointercancel', () => {
+    clearTimeout(holdTimer);
+    held = false;
+    closePicker();
+  });
 
   // ── Touch listeners for skin arrows / overlay ─────────────────────────────
   skinBtn.addEventListener('pointerdown', e => { e.preventDefault(); openSkin(); });

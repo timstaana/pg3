@@ -30,6 +30,17 @@
   </style>
 </head>
 <body>
+
+  <div id="pg-loading" style="
+    position:fixed;inset:0;
+    background:#fff;
+    display:flex;align-items:center;justify-content:center;
+    z-index:9999;
+    transition:opacity .3s;
+  ">
+    <span id="pg-loading-text" style="font:14px/1 sans-serif;color:#000;">loading...</span>
+  </div>
+
   <!-- p5.js v2 -->
   <script src="https://cdn.jsdelivr.net/npm/p5@2/lib/p5.min.js"></script>
 
