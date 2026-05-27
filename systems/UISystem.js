@@ -125,11 +125,10 @@ const setupUI = (onEmoteFired) => {
   document.head.appendChild(el('style', {}, `
     .pg-btn {
       position: fixed;
-      background: rgba(0,0,0,0.55);
-      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-      border: 1px solid rgba(255,255,255,0.13);
+      background: #fff;
+      border: 1px solid #000;
       border-radius: 14px;
-      color: #fff; font-size: 24px;
+      color: #000; font-size: 24px;
       width: 54px; height: 54px;
       padding: 0;
       display: flex; align-items: center; justify-content: center;
@@ -138,9 +137,9 @@ const setupUI = (onEmoteFired) => {
       user-select: none; -webkit-user-select: none;
       z-index: 200;
       opacity: 0;
-      transition: opacity 0.4s ease;
+      transition: opacity 0.4s ease, background 0.08s, color 0.08s;
     }
-    .pg-btn:active { background: rgba(255,255,255,0.18); }
+    .pg-btn:active { background: #000; color: #fff; }
     #pg-skin-btn  { top: 72px; right: 14px; }
     #pg-emote-btn { bottom: 14px; left: 50%; transform: translateX(-50%); }
 
@@ -158,19 +157,18 @@ const setupUI = (onEmoteFired) => {
       position: fixed;
       top: 50%; transform: translateY(-50%);
       z-index: 400;
-      background: rgba(0,0,0,0.50);
-      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.18);
+      background: #fff;
+      border: 1px solid #000;
       border-radius: 50%;
-      color: #fff; font-size: 38px;
+      color: #000; font-size: 38px;
       width: 64px; height: 64px;
       padding: 0;
       display: none; align-items: center; justify-content: center;
       cursor: pointer; touch-action: none;
       user-select: none; -webkit-user-select: none;
-      transition: background 0.12s;
+      transition: background 0.08s, color 0.08s;
     }
-    .pg-skin-arrow:active { background: rgba(255,255,255,0.22); }
+    .pg-skin-arrow:active { background: #000; color: #fff; }
     #pg-skin-prev { left:  max(14px, calc(50% - 700px + 14px)); }
     #pg-skin-next { right: max(14px, calc(50% - 700px + 14px)); }
 
@@ -189,24 +187,20 @@ const setupUI = (onEmoteFired) => {
       position: absolute;
       width: 52px; height: 52px;
       padding: 0;
-      background: rgba(0,0,0,0.65);
-      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-      border: 1.5px solid rgba(255,255,255,0.12);
+      background: #fff;
+      border: 1px solid #000;
       border-radius: 14px;
       display: flex; align-items: center; justify-content: center;
       cursor: pointer; touch-action: none;
       transform: translate(-50%, -50%) scale(0.5);
-      transition: transform 0.18s, border-color 0.1s, background 0.1s;
+      transition: transform 0.18s, background 0.08s;
       pointer-events: none;
     }
     #pg-emote-picker.open .pg-emote-opt {
       transform: translate(-50%, -50%) scale(1);
       pointer-events: auto;
     }
-    .pg-emote-opt.selected {
-      border-color: rgba(255,255,255,0.7);
-      background: rgba(255,255,255,0.12);
-    }
+    .pg-emote-opt.selected { background: #000; }
     #pg-emote-picker.open .pg-emote-opt.selected {
       transform: translate(-50%, -50%) scale(1.15);
     }
