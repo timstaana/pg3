@@ -30,28 +30,6 @@ const MULTIPLAYER = {
   room:      'basic'
 };
 
-// ========== Level Definition ==========
-// pos = center of box, size = [width, height, depth]
-// Platform reachability: jump height ≈ 1.5 units above player center.
-// Player center on a surface = surfaceTop + 0.4 (collision radius).
-
-const LEVEL_BOXES = [
-  // Large floor
-  { id: 'floor', pos: [0,    0,    0],   rot: [0, 0,   0], scale: 1, size: [24, 1,   24],  color: [65, 80,  95]  },
-  // Step 1 — easy first jump from floor (top at 1.75, reachable from floor center 0.9 + 1.5 = 2.4)
-  { id: 'p1',    pos: [0,    1.5, -7],   rot: [0, 0,   0], scale: 1, size: [6,  0.5,  4],  color: [75, 110, 75]  },
-  // Step 2 — from p1 (reachable from p1 center 2.15 + 1.5 = 3.65 → need 3.15)
-  { id: 'p2',    pos: [7,    2.5, -6],   rot: [0, 0,   0], scale: 1, size: [4,  0.5,  4],  color: [110, 75, 75]  },
-  // Side platform — same height as p2, reachable from p1
-  { id: 'p3',    pos: [-6,   2.5, -5],   rot: [0, 0,   0], scale: 1, size: [4,  0.5,  4],  color: [110, 110, 65] },
-  // High platform — from p2 (center 3.15 + 1.5 = 4.65 → need 4.4)
-  { id: 'p4',    pos: [2,    3.75,-12],  rot: [0, 0,   0], scale: 1, size: [5,  0.5,  5],  color: [75, 75,  120] },
-  // Highest point — from p4 (center 4.4 + 1.5 = 5.9 → need 5.4)
-  { id: 'p5',    pos: [-2,   4.75, -9],  rot: [0, 0,   0], scale: 1, size: [3,  0.5,  3],  color: [120, 75, 120] },
-  // Tilted ramp (15° roll)
-  { id: 'ramp',  pos: [10,   1.0,  5],   rot: [0, 0, -15], scale: 1, size: [8,  0.5,  6],  color: [100, 90, 65]  },
-];
-
 const SPAWN_POS = [0, 3, 0];
 const SPAWN_YAW = 0;
 
@@ -66,15 +44,15 @@ const SPAWN_YAW = 0;
 //
 // Fields:
 //   src       – path to .obj (required)
-//   texture   – path to PNG/JPG (optional; omit for flat grey shading)
+//   texture   – path to PNG/JPG (optional; omit for generated tile texture)
 //   pos       – [x, y, z] world position
 //   rot       – [x, y, z] Euler degrees  (optional, default [0,0,0])
 //   scale     – uniform number or [x,y,z] (optional, default 1)
 //   collision – true (default) = player can walk on the mesh
 
 const LEVEL_MODELS = [
-  // { src: 'assets/my_model.obj', texture: 'assets/my_model.png',
-  //   pos: [0, 0, 0], rot: [0, 0, 0], scale: 1, collision: true },
+  // Placeholder level — replace with your own Blender export
+  { src: 'assets/world.obj', pos: [0, 0, 0], rot: [0, 0, 0], scale: 1, collision: true },
 ];
 
 // ========== Game State ==========
@@ -91,29 +69,7 @@ let fpsDiv;
 // ========== Level Builder ==========
 
 const buildLevel = () => {
-  LEVEL_BOXES.forEach(box => {
-    const pos   = createVector(...box.pos);
-    const rot   = createVector(...box.rot);
-    const scale = typeof box.scale === 'number'
-      ? createVector(box.scale, box.scale, box.scale)
-      : createVector(...box.scale);
-
-    addBoxCollider(collisionWorld, pos, rot, scale, box.size);
-    const aabb = computeBoxAABB(pos, rot, scale, box.size);
-
-    createEntity(world, {
-      Collider: {
-        id: box.id,
-        type: 'box',
-        pos, rot, scale,
-        size:  box.size,
-        color: box.color || [80, 120, 160],
-        aabb
-      }
-    });
-  });
-
-  // Create player entity
+  // Create player entity — level geometry loaded separately via loadModels()
   const jumpSpeed = Math.sqrt(2 * GRAVITY * JUMP_HEIGHT);
   const spawnPos  = createVector(...SPAWN_POS);
 
@@ -154,6 +110,20 @@ const buildLevel = () => {
 
 // ========== OBJ Model Loader ==========
 
+// Procedural tile texture — used when a model has no texture file.
+// Generates a 128×128 grid pattern as a p5.Graphics (valid WEBGL texture).
+const makeTileTexture = () => {
+  const g = createGraphics(128, 128);
+  g.background(60, 80, 100);
+  g.stroke(90, 115, 140);
+  g.strokeWeight(1);
+  for (let i = 0; i < 128; i += 16) {
+    g.line(i, 0, i, 128);
+    g.line(0, i, 128, i);
+  }
+  return g;
+};
+
 const loadModels = async () => {
   for (const def of LEVEL_MODELS) {
     const pos   = createVector(...def.pos);
@@ -176,10 +146,10 @@ const loadModels = async () => {
         );
       }
 
-      // Optional texture
+      // Texture: load from path, generate tile pattern, or null for grey shading
       const tex = def.texture
         ? await new Promise((res, rej) => loadImage(def.texture, res, rej))
-        : null;
+        : makeTileTexture();
 
       // Build a p5.Geometry once — reused every frame for fast rendering
       const geo = new p5.Geometry();

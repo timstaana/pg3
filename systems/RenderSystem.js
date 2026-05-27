@@ -1,31 +1,16 @@
-// RenderSystem.js — boxes · OBJ models · 2D sprites · blob shadows
+// RenderSystem.js — OBJ models · 2D sprites · blob shadows
 
 let alphaCutoutShader = null; // assigned in main.js after shader loads
 
-// ─── Box collider ──────────────────────────────────────────────────────────
-
-const renderBoxCollider = (col) => {
-  push();
-  translate(col.pos.x, col.pos.y, col.pos.z);
-  rotateY(radians( col.rot.y));
-  rotateX(radians(-col.rot.x));
-  rotateZ(radians(-col.rot.z));
-  scale(col.scale.x, col.scale.y, col.scale.z);
-  fill(...(col.color || [80, 120, 160]));
-  noStroke();
-  box(col.size[0], col.size[1], col.size[2]);
-  pop();
-};
-
 // ─── OBJ model ────────────────────────────────────────────────────────────
 
-const renderModel = ({ pos, rot, scale, geo, tex }) => {
+const renderModel = ({ pos, rot, scale: scl, geo, tex }) => {
   push();
   translate(pos.x, pos.y, pos.z);
   rotateY(radians(-rot.y));
   rotateX(radians(-rot.x));
   rotateZ(radians(-rot.z));
-  scale(scale.x, scale.y, scale.z);
+  scale(scl.x, scl.y, scl.z);
   noStroke();
   if (tex) texture(tex);
   else     ambientMaterial(160);
@@ -34,60 +19,43 @@ const renderModel = ({ pos, rot, scale, geo, tex }) => {
 };
 
 // ─── Blob shadow ──────────────────────────────────────────────────────────
-// Optimisations vs naïve version:
-//  1. XZ-AABB prefilter — only test triangles whose X/Z range contains the player.
-//     Rejects ~90 % of triangles before any float-division touches them.
-//  2. Hardcoded downward ray (0,−1,0) — Möller–Trumbore simplified so several
-//     terms vanish, no temporary p5.Vector allocations at all.
-//  3. Per-entity 2-frame stagger — entity with even id updates on even frames,
-//     odd id on odd frames.  Halves the per-frame cost for every character.
+// Optimisations:
+//  1. XZ-AABB prefilter — rejects ~90% of triangles before any division.
+//  2. Hardcoded downward ray — Möller–Trumbore with dir=(0,−1,0), no allocs.
+//  3. 2-frame stagger — even entity ids update on even frames, odd on odd.
 //  4. Result cached in _shadowCache until the entity's frame arrives.
 
 const _shadowCache = new Map(); // entityId → { hitY, dist } | null
 
 const _getShadowHit = (entityId, pos, collWorld) => {
-  // Only recompute on this entity's designated frame
   if ((frameCount & 1) !== (entityId & 1)) return _shadowCache.get(entityId) ?? null;
 
   const px = pos.x, py = pos.y, pz = pos.z;
-  let bestT  = 10;       // max shadow distance (world units)
+  let bestT = 10;
   let hitFound = false;
 
   for (const tri of collWorld.tris) {
     const { aabb } = tri;
-
-    // ── 1. XZ prefilter (no trig, just bounds compare)
     if (px < aabb.minX || px > aabb.maxX ||
         pz < aabb.minZ || pz > aabb.maxZ ||
-        aabb.maxY >= py) continue;         // triangle above player → skip
+        aabb.maxY >= py) continue;
 
-    // ── 2. Möller–Trumbore with ray dir = (0, −1, 0)
-    //   h = dir × e2 = (0,−1,0) × e2 = (−e2z, 0, e2x)
-    //   det = e1·h = e1z·e2x − e1x·e2z
     const { a, b, c } = tri;
-    const e1x = b.x - a.x, e1y = b.y - a.y, e1z = b.z - a.z;
-    const e2x = c.x - a.x, e2y = c.y - a.y, e2z = c.z - a.z;
-
-    const det = e1z * e2x - e1x * e2z;
+    const e1x = b.x-a.x, e1y = b.y-a.y, e1z = b.z-a.z;
+    const e2x = c.x-a.x, e2y = c.y-a.y, e2z = c.z-a.z;
+    const det = e1z*e2x - e1x*e2z;
     if (Math.abs(det) < 1e-8) continue;
 
-    const f  = 1 / det;
-    const sx = px - a.x, sy = py - a.y, sz = pz - a.z;
-
-    //   u = f · (s·h) = f · (sz·e2x − sx·e2z)
-    const u = f * (sz * e2x - sx * e2z);
+    const f  = 1/det;
+    const sx = px-a.x, sy = py-a.y, sz = pz-a.z;
+    const u  = f*(sz*e2x - sx*e2z);
     if (u < 0 || u > 1) continue;
-
-    //   q = s × e1;  v = f · (dir·q) = f · (−qy)
-    const qy = sz * e1x - sx * e1z;
-    const v  = -f * qy;
-    if (v < 0 || u + v > 1) continue;
-
-    //   t = f · (e2·q)
-    const qx = sy * e1z - sz * e1y;
-    const qz = sx * e1y - sy * e1x;
-    const t  = f * (e2x * qx + e2y * qy + e2z * qz);
-
+    const qy = sz*e1x - sx*e1z;
+    const v  = -f*qy;
+    if (v < 0 || u+v > 1) continue;
+    const qx = sy*e1z - sz*e1y;
+    const qz = sx*e1y - sy*e1x;
+    const t  = f*(e2x*qx + e2y*qy + e2z*qz);
     if (t > 1e-4 && t < bestT) { bestT = t; hitFound = true; }
   }
 
@@ -175,18 +143,8 @@ const RenderSystem = (world, collisionWorld, dt) => {
   ambientLight(100);
   directionalLight(200, 200, 200, 0, 1, 0);
 
-  const gl = drawingContext;
-  gl.enable(gl.CULL_FACE);
-  gl.cullFace(gl.BACK);
-
-  // Solid geometry
-  queryEntities(world, 'Collider').forEach(({ Collider: col }) => {
-    if (col.type === 'box') renderBoxCollider(col);
-  });
+  // OBJ models + sprites are flat or mixed-winding — no backface culling
   queryEntities(world, 'Model').forEach(({ Model: m }) => renderModel(m));
-
-  // Sprites + shadows — no backface culling (flat quads / circles)
-  gl.disable(gl.CULL_FACE);
 
   queryEntities(world, 'Player',         'Transform').forEach(e => renderShadow(e, collisionWorld));
   queryEntities(world, 'NetworkedPlayer','Transform').forEach(e => renderShadow(e, collisionWorld));
