@@ -142,9 +142,9 @@ const TouchInputSystem = (world, dt) => {
     input.turn    = 0;
     input.jump    = false;
 
-    // Block all movement while the skin selector is open
-    if (typeof uiState !== 'undefined' && uiState.skinPreview) {
-      touchState.jumpQueued = false; // discard any queued jump too
+    // Block all movement while skin select or emote picker is active
+    if (typeof uiState !== 'undefined' && (uiState.skinPreview || uiState.emotePickerOpen)) {
+      touchState.jumpQueued = false;
       return;
     }
 

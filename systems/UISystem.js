@@ -1,12 +1,18 @@
 // UISystem.js — Skin selector + Emote picker UI overlay
 //
-// Skin mode  (skin button, top-right):
-//   • Hides all other buttons
-//   • Shows ‹ › arrows pinned to the left / right screen edges (vertically centred)
-//   • Tap the centre (anywhere that isn't an arrow) → confirm & return to game
-//   • Movement is blocked while skin mode is active (see TouchInputSystem / InputSystem)
+// Skin mode  (skin button or keyboard):
+//   • Hides other buttons; shows ‹ › side arrows
+//   • Touch: tap centre to confirm
+//   • Keyboard: A/← D/→ cycle skins; E or Space confirm
 //
-// Emote button (bottom-right): tap = fire current emote; hold = open picker
+// Emote (touch: emote button; keyboard: E key):
+//   • Quick tap / quick E press  → fire current emote
+//   • Hold (320 ms)              → open picker
+//   • Picker open, touch         → tap option to select
+//   • Picker open, keyboard      → W/↑ D/→ next  S/↓ A/← prev  then release E or Space
+//
+// Movement is blocked while skin mode or emote picker is active.
+// (see TouchInputSystem and InputSystem)
 
 // ── Helper ─────────────────────────────────────────────────────────────────────
 const el = (tag, attrs = {}, html = '') => {
@@ -28,19 +34,17 @@ const EMOTES = [
   { id: 'emote_2', label: 'Bunny 2', src: 'assets/emote_02.png' },
 ];
 
-// ── Shared state (read by CameraSystem, NetworkSystem, etc.) ──────────────────
+// ── Shared state ───────────────────────────────────────────────────────────────
 
 const uiState = {
-  skinPreview:   false,   // CameraSystem zooms to full-body when true
-  selectedSkin:  0,
-  selectedEmote: 0,
-  buttonFade:    1,       // 0 = visible, 1 = hidden; starts at 1 (hidden during intro)
+  skinPreview:      false,  // CameraSystem zooms to full-body when true
+  selectedSkin:     0,
+  selectedEmote:    0,
+  buttonFade:       1,      // 0 = visible, 1 = hidden; driven by CameraSystem
+  emotePickerOpen:  false,  // true while picker is showing (blocks movement)
 };
 
-// ── Button fade ───────────────────────────────────────────────────────────────
-// updateUI() is called every draw frame. It maps uiState.buttonFade → CSS opacity
-// and only writes to the DOM when the value actually changes.
-// CSS transition on .pg-btn handles the smooth interpolation.
+// ── Button opacity fade ────────────────────────────────────────────────────────
 
 let _lastFadeOpacity = -1;
 
@@ -51,6 +55,65 @@ const updateUI = () => {
   for (const id of ['pg-skin-btn', 'pg-emote-btn']) {
     const btn = document.getElementById(id);
     if (btn) btn.style.opacity = opacity;
+  }
+};
+
+// ── Keyboard handler (called by InputSystem every frame) ──────────────────────
+// All UI key logic lives here so InputSystem stays clean.
+
+let _ui         = null;   // set by setupUI once DOM is ready
+let _eHeldTime  = 0;      // seconds E has been held this press
+let _ePickerOpen = false; // true = picker was opened via keyboard hold
+
+const handleUIKeys = (keys, keysPressed, dt) => {
+  if (!_ui) return;
+
+  // ── Skin select ─────────────────────────────────────────────────────────────
+  if (uiState.skinPreview) {
+    if (keysPressed['a'] || keysPressed['arrowleft'])  _ui.cycleSkin(-1);
+    if (keysPressed['d'] || keysPressed['arrowright']) _ui.cycleSkin(+1);
+    if (keysPressed['e'] || keysPressed[' '] || keysPressed['enter']) {
+      _ui.closeSkin();
+      // Clear space and enter so InputSystem can't consume them as jump/action
+      keysPressed[' ']     = false;
+      keysPressed['enter'] = false;
+      keysPressed['e']     = false;
+    }
+    return;
+  }
+
+  // ── E key: tap = fire emote, hold = open picker ──────────────────────────────
+  if (keys['e']) {
+    _eHeldTime += dt;
+    if (_eHeldTime >= 0.32 && !_ePickerOpen) {
+      _ePickerOpen = true;
+      _ui.openPicker();          // also sets uiState.emotePickerOpen = true
+    }
+  } else if (_eHeldTime > 0) {
+    // E just released — fire emote and tidy up
+    _ui.closePicker();           // also sets uiState.emotePickerOpen = false
+    _ePickerOpen = false;
+    _eHeldTime   = 0;
+    _ui.fireEmote();
+    return;                      // skip movement on the release frame
+  }
+
+  // ── Picker navigation (while picker is open) ──────────────────────────────
+  if (uiState.emotePickerOpen) {
+    if (keysPressed['w'] || keysPressed['arrowup']    || keysPressed['d'] || keysPressed['arrowright'])
+      _ui.cycleEmote(+1);
+    if (keysPressed['s'] || keysPressed['arrowdown']  || keysPressed['a'] || keysPressed['arrowleft'])
+      _ui.cycleEmote(-1);
+
+    // Space or Enter confirms while picker is open
+    if (keysPressed[' '] || keysPressed['enter']) {
+      _ui.closePicker();
+      _ePickerOpen = false;
+      _eHeldTime   = 0;
+      _ui.fireEmote();
+      keysPressed[' ']     = false;   // don't also jump
+      keysPressed['enter'] = false;
+    }
   }
 };
 
@@ -136,7 +199,6 @@ const setupUI = (onEmoteFired) => {
   const SKIN_FRAMES = 3;
   const skinBtn     = el('button', { id: 'pg-skin-btn', class: 'pg-btn' });
   const skinBtnImg  = el('div', { style: [
-    // width/height are overwritten by setSkinBtnAspect() once the image loads
     'width:36px', 'height:36px',
     `background-image:url(${SKINS[0].front})`,
     `background-size:${SKIN_FRAMES * 100}% 100%`,
@@ -148,9 +210,7 @@ const setupUI = (onEmoteFired) => {
   skinBtn.appendChild(skinBtnImg);
   document.body.appendChild(skinBtn);
 
-  // Resize the skin-button image div to the frame's true aspect ratio.
-  // Called once on startup and again each time the skin is cycled.
-  const MAX_BTN_SIZE = 42; // max dimension (px) to fit inside the 54px button
+  const MAX_BTN_SIZE = 42;
   const setSkinBtnAspect = (src) => {
     const probe = new Image();
     probe.onload = () => {
@@ -176,13 +236,16 @@ const setupUI = (onEmoteFired) => {
   document.body.appendChild(prevBtn);
   document.body.appendChild(nextBtn);
 
-  // ── Open / close helpers ───────────────────────────────────────────────────
+  // ── Skin open / close / cycle ─────────────────────────────────────────────
 
   const openSkin = () => {
+    // Reset E-hold state so returning from skin mode doesn't fire a stale emote
+    _eHeldTime = 0;
+    closePicker();   // close emote picker if open
+
     uiState.skinPreview = true;
     skinBtn.style.display  = 'none';
     emoteBtn.style.display = 'none';
-    emotePicker.classList.remove('open');
     skinOverlay.classList.add('open');
     prevBtn.style.display = 'flex';
     nextBtn.style.display = 'flex';
@@ -197,52 +260,52 @@ const setupUI = (onEmoteFired) => {
     nextBtn.style.display = 'none';
   };
 
-  // ── Skin cycling ───────────────────────────────────────────────────────────
-
   const cycleSkin = (dir) => {
     uiState.selectedSkin = (uiState.selectedSkin + dir + SKINS.length) % SKINS.length;
     const skin = SKINS[uiState.selectedSkin];
     skinBtnImg.style.backgroundImage = `url(${skin.front})`;
     setSkinBtnAspect(skin.front);
-
-    // Swap live player textures so the in-world sprite updates immediately
     loadImage(skin.front, img => { PLAYER_FRONT_TEX = img; });
     loadImage(skin.back,  img => { PLAYER_BACK_TEX  = img; });
   };
 
-  // ── Event listeners ────────────────────────────────────────────────────────
-
-  skinBtn.addEventListener('pointerdown', e => { e.preventDefault(); openSkin(); });
-
-  // Tap centre → confirm skin.
-  // stopPropagation prevents the event reaching the document-level TouchInputSystem
-  // listener, which would otherwise queue a jump on the frame after closing.
-  skinOverlay.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); closeSkin(); });
-
-  // Arrow buttons — stop propagation so they don't also close the overlay
-  prevBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); cycleSkin(-1); });
-  nextBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); cycleSkin(+1); });
-
   // ── Emote picker ───────────────────────────────────────────────────────────
   const emotePicker = el('div', { id: 'pg-emote-picker' });
+
+  // Shared emote-selection logic used by both touch and keyboard paths
+  const setEmote = (i) => {
+    uiState.selectedEmote = i;
+    emoteBtnImg.src = EMOTES[i].src;
+    emotePicker.querySelectorAll('.pg-emote-opt').forEach((b, j) =>
+      b.classList.toggle('selected', j === i)
+    );
+  };
+
+  const cycleEmote = (dir) => {
+    setEmote((uiState.selectedEmote + dir + EMOTES.length) % EMOTES.length);
+  };
+
   EMOTES.forEach((emote, i) => {
     const btn = el('button', { class: 'pg-emote-opt' + (i === 0 ? ' selected' : '') });
     btn.appendChild(el('img', { src: emote.src, style: 'width:34px;height:34px;object-fit:contain;pointer-events:none' }));
     btn.addEventListener('pointerdown', e => {
       e.preventDefault(); e.stopPropagation();
-      uiState.selectedEmote = i;
-      emoteBtnImg.src       = emote.src;
-      emotePicker.querySelectorAll('.pg-emote-opt').forEach((b, j) =>
-        b.classList.toggle('selected', j === i)
-      );
+      setEmote(i);
       closePicker();
     });
     emotePicker.appendChild(btn);
   });
   document.body.appendChild(emotePicker);
 
-  const openPicker  = () => emotePicker.classList.add('open');
-  const closePicker = () => emotePicker.classList.remove('open');
+  const openPicker = () => {
+    emotePicker.classList.add('open');
+    uiState.emotePickerOpen = true;
+  };
+  const closePicker = () => {
+    emotePicker.classList.remove('open');
+    uiState.emotePickerOpen = false;
+    _ePickerOpen            = false;  // keep keyboard state in sync
+  };
 
   // Close picker on outside tap
   document.addEventListener('pointerdown', e => {
@@ -272,4 +335,20 @@ const setupUI = (onEmoteFired) => {
     if (!held && onEmoteFired) onEmoteFired(EMOTES[uiState.selectedEmote].id);
   });
   emoteBtn.addEventListener('pointercancel', () => clearTimeout(holdTimer));
+
+  // ── Touch listeners for skin arrows / overlay ─────────────────────────────
+  skinBtn.addEventListener('pointerdown', e => { e.preventDefault(); openSkin(); });
+  skinOverlay.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); closeSkin(); });
+  prevBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); cycleSkin(-1); });
+  nextBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); cycleSkin(+1); });
+
+  // ── Expose refs for handleUIKeys ──────────────────────────────────────────
+  _ui = {
+    cycleSkin,
+    closeSkin,
+    openPicker,
+    closePicker,
+    cycleEmote,
+    fireEmote: () => { if (onEmoteFired) onEmoteFired(EMOTES[uiState.selectedEmote].id); },
+  };
 };

@@ -1,4 +1,7 @@
 // InputSystem.js - Keyboard input (WASD / Arrow keys + Space to jump)
+//
+// handleUIKeys() (defined in UISystem.js) is called first each frame so it can
+// consume the keys it needs (skin cycling, emote) before movement sees them.
 
 const keys        = {};
 const keysPressed = {};
@@ -13,14 +16,15 @@ const setupInputListeners = () => {
     keys[e.key.toLowerCase()] = false;
   });
 
-  // Prevent iOS text-selection bubble from appearing during touch input.
-  // selectstart fires right before the browser draws the selection UI.
   document.addEventListener('selectstart', e => e.preventDefault());
 };
 
 const InputSystem = (world, dt) => {
-  // Block all keyboard input while the skin selector is open
-  if (typeof uiState !== 'undefined' && uiState.skinPreview) {
+  // UI keys run first — skin cycling, emote fire/navigate — may consume keys
+  if (typeof handleUIKeys === 'function') handleUIKeys(keys, keysPressed, dt);
+
+  // Block movement while skin select or emote picker is active
+  if (typeof uiState !== 'undefined' && (uiState.skinPreview || uiState.emotePickerOpen)) {
     Object.keys(keysPressed).forEach(k => { keysPressed[k] = false; });
     return;
   }
@@ -38,7 +42,6 @@ const InputSystem = (world, dt) => {
       (keys['d'] || keys['arrowright'] ? 1 : 0) -
       (keys['a'] || keys['arrowleft']  ? 1 : 0);
 
-    // Keyboard overrides touch input when pressed
     if (fwd  !== 0) input.forward = fwd;
     if (turn !== 0) input.turn    = turn;
   });
