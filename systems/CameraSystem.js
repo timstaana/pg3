@@ -62,5 +62,9 @@ const CameraSystem = (world) => {
 
   const eye    = worldToP5(cameraRig.eyeX, cameraRig.eyeY, cameraRig.eyeZ);
   const lookAt = worldToP5(pp.x, pp.y + cfg.lookAtYOffset, pp.z);
+
+  // Explicit perspective so near/far clip planes don't shift with window size.
+  // Units are p5-space (world × WORLD_SCALE=50): near=10→0.2wu, far=50000→1000wu.
+  perspective(PI / 3, width / height, 10, 50000);
   camera(eye.x, eye.y, eye.z, lookAt.x, lookAt.y, lookAt.z, 0, 1, 0);
 };

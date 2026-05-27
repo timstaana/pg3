@@ -143,8 +143,18 @@ const RenderSystem = (world, collisionWorld, dt) => {
   ambientLight(100);
   directionalLight(200, 200, 200, 0, 1, 0);
 
-  // OBJ models + sprites are flat or mixed-winding — no backface culling
+  // ── OBJ models: backface culling so camera can see through walls from behind.
+  // Blender exports CCW outward normals (Y-up). The global scale(W,−W,W) flips Y,
+  // which reverses winding → outward faces are now CW.  Setting frontFace=CW
+  // makes those outward faces front-facing; inward (CCW) faces are culled.
+  // Result: walls are solid from outside, invisible when camera passes behind them.
+  const gl = drawingContext;
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
   queryEntities(world, 'Model').forEach(({ Model: m }) => renderModel(m));
+
+  // Sprites and shadows are flat quads/circles — no culling.
+  gl.disable(gl.CULL_FACE);
 
   queryEntities(world, 'Player',         'Transform').forEach(e => renderShadow(e, collisionWorld));
   queryEntities(world, 'NetworkedPlayer','Transform').forEach(e => renderShadow(e, collisionWorld));

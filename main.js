@@ -18,7 +18,7 @@ const CAMERA_CONFIG = {
   minDistance:   2.0,
   height:        1.75,
   pitch:         10,
-  lookAtYOffset: 1.5
+  lookAtYOffset: 0.55  // sprite spans pos.y−0.4 → pos.y+1.1; centre ≈ 0.35
 };
 
 // ========== Multiplayer Config ==========
