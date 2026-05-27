@@ -82,16 +82,24 @@ const renderShadow = (entity, collWorld) => {
 };
 
 // ─── 2D sprite billboard ───────────────────────────────────────────────────
+// Zero allocation per call: dot product computed inline instead of via
+// p5.Vector.sub + createVector.  Shader is activated once per frame for the
+// whole batch (see RenderSystem below) — _spriteBatchActive suppresses the
+// per-sprite shader() / resetShader() calls.
+
+let _spriteBatchActive = false; // set by RenderSystem around sprite loops
 
 const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex) => {
   if (!frontTex || !backTex) return;
 
-  // Choose front vs back texture from camera–character dot product
-  const toCam   = p5.Vector.sub(cameraRig.camPosWorld, pos);
-  toCam.y = 0;
-  toCam.normalize();
+  // Camera→character XZ direction, normalised — no vector allocations
+  const dcx  = cameraRig.camPosWorld.x - pos.x;
+  const dcz  = cameraRig.camPosWorld.z - pos.z;
+  const dlen = Math.hypot(dcx, dcz) || 1;
+  const tcx  = dcx / dlen, tcz = dcz / dlen;
+
   const yawRad   = radians(-rot.y);
-  const useFront = toCam.dot(createVector(sin(yawRad), 0, cos(yawRad))) > 0;
+  const useFront = tcx * sin(yawRad) + tcz * cos(yawRad) > 0;
 
   const fw   = 1 / anim.totalFrames;
   let uMin   = anim.currentFrame * fw;
@@ -105,7 +113,7 @@ const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex) => {
 
   push();
   translate(pos.x, pos.y, pos.z);
-  rotateY(yawRad); // reuse already-computed value
+  rotateY(yawRad);
   noLights();
   noStroke();
   fill(255);
@@ -113,8 +121,8 @@ const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex) => {
   textureMode(NORMAL);
 
   if (alphaCutoutShader) {
-    shader(alphaCutoutShader);
-    alphaCutoutShader.setUniform('uTexture',    tex);
+    if (!_spriteBatchActive) shader(alphaCutoutShader); // hoisted to batch in RenderSystem
+    alphaCutoutShader.setUniform('uTexture',     tex);
     alphaCutoutShader.setUniform('uAlphaCutoff', 0.1);
     alphaCutoutShader.setUniform('uFadeAlpha',   1.0);
   }
@@ -126,7 +134,7 @@ const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex) => {
   vertex(-halfW, bottom + height, 0, uMin, 0);
   endShape(CLOSE);
 
-  if (alphaCutoutShader) resetShader();
+  if (alphaCutoutShader && !_spriteBatchActive) resetShader();
 
   ambientLight(100);
   directionalLight(200, 200, 200, 0, 1, 0);
@@ -160,6 +168,10 @@ const RenderSystem = (world, collisionWorld, dt) => {
   queryEntities(world, 'Player',         'Transform').forEach(e => renderShadow(e, collisionWorld));
   queryEntities(world, 'NetworkedPlayer','Transform').forEach(e => renderShadow(e, collisionWorld));
 
+  // Activate shader once for all sprites — avoids N GPU state flushes per frame
+  _spriteBatchActive = !!alphaCutoutShader;
+  if (alphaCutoutShader) shader(alphaCutoutShader);
+
   queryEntities(world, 'Player', 'Transform', 'Animation').forEach(entity => {
     const { Transform: { pos, rot }, Animation: anim, Player: pd } = entity;
     renderCharacterSprite(pos, rot, anim, pd.radius, PLAYER_FRONT_TEX, PLAYER_BACK_TEX);
@@ -167,12 +179,14 @@ const RenderSystem = (world, collisionWorld, dt) => {
 
   queryEntities(world, 'NetworkedPlayer', 'Transform', 'Animation').forEach(entity => {
     const { Transform: { pos, rot }, Animation: anim, NetworkedPlayer: nd } = entity;
-    // Look up this remote player's chosen skin; fall back to local player textures
     const skinTexs = (SKIN_TEXTURES && nd.skinId && SKIN_TEXTURES[nd.skinId])
       ? SKIN_TEXTURES[nd.skinId]
       : { front: PLAYER_FRONT_TEX, back: PLAYER_BACK_TEX };
     renderCharacterSprite(pos, rot, anim, nd.radius, skinTexs.front, skinTexs.back);
   });
+
+  if (alphaCutoutShader) resetShader();
+  _spriteBatchActive = false;
 
   pop();
 };

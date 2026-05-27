@@ -186,6 +186,11 @@ const loadModels = async () => {
 async function setup() {
   const _loadEl = document.getElementById('pg-loading');
 
+  // Mobile devices report 2–3× devicePixelRatio — that's 4–9× more pixels to shade
+  // every frame. Cap to 1× on touch-primary devices; desktop retina stays at 2×.
+  const _isMobile = window.matchMedia('(pointer: coarse)').matches;
+  pixelDensity(_isMobile ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+
   createCanvas(windowWidth, windowHeight, WEBGL);
 
   // Prevent iOS long-press / drag / zoom gestures on canvas
