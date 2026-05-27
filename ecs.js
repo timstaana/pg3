@@ -1,37 +1,37 @@
-// ecs.js - Minimal Entity Component System
-// Plain JavaScript objects for data-driven architecture
-
-// ========== World Management ==========
+// ecs.js - Minimal ECS with query caching
+// queryEntities is called 10-15× per frame; caching makes it O(1) after first call.
+// Cache is invalidated only when entities are added or removed (rare at runtime).
 
 const createWorld = () => ({
   entities: [],
-  nextId: 0
+  nextId:   0,
+  _cache:   new Map(), // componentKey → filtered entity[]
+  _dirty:   false,     // true = rebuild cache on next query
 });
 
 const createEntity = (world, components = {}) => {
   const entity = { id: world.nextId++, ...components };
   world.entities.push(entity);
+  world._dirty = true;
   return entity;
 };
 
 const removeEntity = (world, entity) => {
   const idx = world.entities.indexOf(entity);
   if (idx !== -1) world.entities.splice(idx, 1);
+  world._dirty = true;
 };
 
-const queryEntities = (world, ...componentNames) =>
-  world.entities.filter(entity =>
-    componentNames.every(name => entity[name] !== undefined)
-  );
-
-// ========== Component Definitions ==========
-// Components are plain object properties attached to entities
-//
-// Transform: { pos: p5.Vector, rot: p5.Vector, scale: p5.Vector }
-// Velocity: { vel: p5.Vector }
-// Player: { radius, grounded, groundNormal, jumpSpeed, moveSpeed }
-// Input: { move: p5.Vector, jump: boolean }
-// Collider: { id, type, pos, rot, scale, size, vertices, faces }
-// CanvasOverlay: { x, y, text, fontSize, color, bgColor, padding }
-// TextSprite: { key, text, texture, size, dirty, fontSize, color, bgColor }
-// CameraAnchor: { distance, offset, alwaysOnTop }
+const queryEntities = (world, ...componentNames) => {
+  if (world._dirty) {
+    world._cache.clear();
+    world._dirty = false;
+  }
+  const key = componentNames.join('\0');
+  let cached = world._cache.get(key);
+  if (!cached) {
+    cached = world.entities.filter(e => componentNames.every(n => e[n] !== undefined));
+    world._cache.set(key, cached);
+  }
+  return cached;
+};

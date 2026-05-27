@@ -55,6 +55,28 @@ const LEVEL_BOXES = [
 const SPAWN_POS = [0, 3, 0];
 const SPAWN_YAW = 0;
 
+// ========== OBJ Model Definition ==========
+// Drop Blender exports here — they get collision + rendering automatically.
+//
+// Blender export steps:
+//   File › Export › Wavefront (.obj)
+//   ✓ Triangulate Faces   ✓ Include UVs
+//   Forward Axis: -Z      Up Axis: Y   (default)
+//   Export the .obj and the .png texture into the assets/ folder.
+//
+// Fields:
+//   src       – path to .obj (required)
+//   texture   – path to PNG/JPG (optional; omit for flat grey shading)
+//   pos       – [x, y, z] world position
+//   rot       – [x, y, z] Euler degrees  (optional, default [0,0,0])
+//   scale     – uniform number or [x,y,z] (optional, default 1)
+//   collision – true (default) = player can walk on the mesh
+
+const LEVEL_MODELS = [
+  // { src: 'assets/my_model.obj', texture: 'assets/my_model.png',
+  //   pos: [0, 0, 0], rot: [0, 0, 0], scale: 1, collision: true },
+];
+
 // ========== Game State ==========
 
 let world;
@@ -130,6 +152,59 @@ const buildLevel = () => {
   });
 };
 
+// ========== OBJ Model Loader ==========
+
+const loadModels = async () => {
+  for (const def of LEVEL_MODELS) {
+    const pos   = createVector(...def.pos);
+    const rot   = createVector(...(def.rot   || [0, 0, 0]));
+    const scale = typeof def.scale === 'number'
+      ? createVector(def.scale, def.scale, def.scale)
+      : createVector(...(def.scale || [1, 1, 1]));
+
+    try {
+      const { vertices, uvs, faces } = parseOBJ(
+        await (await fetch(def.src)).text()
+      );
+
+      // Add mesh to the collision world so the player can walk on it
+      if (def.collision !== false) {
+        addMeshCollider(
+          collisionWorld, vertices,
+          faces.map(f => [f[0].vertex, f[1].vertex, f[2].vertex]),
+          pos, rot, scale
+        );
+      }
+
+      // Optional texture
+      const tex = def.texture
+        ? await new Promise((res, rej) => loadImage(def.texture, res, rej))
+        : null;
+
+      // Build a p5.Geometry once — reused every frame for fast rendering
+      const geo = new p5.Geometry();
+      faces.forEach(face => {
+        face.forEach(f => {
+          const v = vertices[f.vertex];
+          geo.vertices.push(createVector(v.x, v.y, v.z));
+          if (uvs.length) {
+            const uv = f.uv >= 0 ? uvs[f.uv] : createVector(0, 0);
+            geo.uvs.push(uv.x, 1 - uv.y); // flip V for p5.js convention
+          }
+        });
+        const n = geo.vertices.length;
+        geo.faces.push([n - 3, n - 2, n - 1]);
+      });
+      geo.computeNormals();
+
+      createEntity(world, { Model: { pos, rot, scale, geo, tex } });
+      console.log(`Model: ${def.src} (${faces.length} tris)`);
+    } catch (err) {
+      console.warn(`Model failed: ${def.src}`, err);
+    }
+  }
+};
+
 // ========== Setup ==========
 
 async function setup() {
@@ -166,6 +241,7 @@ async function setup() {
 
   setupInputListeners();
   buildLevel();
+  await loadModels(); // no-op when LEVEL_MODELS is empty
 
   // Load player sprites
   PLAYER_FRONT_TEX = await new Promise((res, rej) =>

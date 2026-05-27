@@ -1,47 +1,53 @@
-// AnimationSystem.js - Sprite frame animation for player and remote players
+// AnimationSystem.js — Sprite frame cycling for player and remote players
+//
+// Optimisation: walk-frame index stored as anim._wi (integer counter) so
+// advancing to the next frame is O(1) modulo arithmetic instead of indexOf().
 
 const AnimationSystem = (world, dt) => {
-  // Local player: animate based on input
+  // ── Local player — driven by input
   const players = queryEntities(world, 'Animation', 'Velocity', 'Input', 'Player');
 
-  players.forEach(entity => {
+  for (const entity of players) {
     const { Animation: anim, Velocity: { vel }, Input: input, Player: pd } = entity;
 
     if (input.turn || input.forward) {
-      const wasIdle = anim.currentFrame === anim.idleFrame;
-      if (wasIdle) {
+      // Kick off walk cycle immediately when transitioning from idle
+      if (anim.currentFrame === anim.idleFrame) {
+        anim._wi          = 0;
         anim.currentFrame = anim.walkFrames[0];
         anim.frameTime    = 0;
       }
 
-      const hSpeed  = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
-      const fps     = input.turn && hSpeed < 0.1
+      // Scale animation speed with actual horizontal speed
+      const hSpeed  = Math.sqrt(vel.x*vel.x + vel.z*vel.z);
+      const fps     = (input.turn && hSpeed < 0.1)
         ? anim.framesPerSecond
         : anim.framesPerSecond * Math.max(hSpeed / pd.moveSpeed, 0.5);
 
       anim.frameTime += dt;
-      if (anim.frameTime >= 1 / fps) {
-        anim.frameTime -= 1 / fps;
-        const idx = anim.walkFrames.indexOf(anim.currentFrame);
-        anim.currentFrame = anim.walkFrames[
-          idx >= 0 ? (idx + 1) % anim.walkFrames.length : 0
-        ];
+      const frameDur  = 1 / fps;
+      if (anim.frameTime >= frameDur) {
+        anim.frameTime -= frameDur;
+        // O(1) index advance — no indexOf scan
+        anim._wi          = ((anim._wi ?? 0) + 1) % anim.walkFrames.length;
+        anim.currentFrame = anim.walkFrames[anim._wi];
       }
     } else {
       anim.currentFrame = anim.idleFrame;
       anim.frameTime    = 0;
+      anim._wi          = 0;
     }
-  });
+  }
 
-  // Remote players: animate based on movement flags set by NetworkSystem
+  // ── Remote (networked) players — driven by movement flags from NetworkSystem
   const remote = queryEntities(world, 'Animation', 'NetworkedPlayer');
 
-  remote.forEach(entity => {
+  for (const entity of remote) {
     const { Animation: anim, NetworkedPlayer: nd } = entity;
 
     if (nd.isMoving || nd.isTurning) {
       anim.frameTime += dt;
-      const frameDur = 1 / anim.framesPerSecond;
+      const frameDur  = 1 / anim.framesPerSecond;
       if (anim.frameTime >= frameDur) {
         anim.frameTime   -= frameDur;
         anim.currentFrame = (anim.currentFrame + 1) % anim.totalFrames;
@@ -50,5 +56,5 @@ const AnimationSystem = (world, dt) => {
       anim.currentFrame = 0;
       anim.frameTime    = 0;
     }
-  });
+  }
 };
