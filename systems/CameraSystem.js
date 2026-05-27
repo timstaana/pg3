@@ -16,6 +16,12 @@ const IDLE_TIMEOUT   = 15;           // seconds until camera returns to intro
 const BLEND_TO_GAME  = 0.08;
 const BLEND_TO_INTRO = 0.04;
 
+// ── Drone intro params ────────────────────────────────────────────────────────
+const DRONE_DIST     = 13;           // world units away at start
+const DRONE_H        = 6;            // extra Y above intro position
+const DRONE_DURATION = 3.2;          // seconds for fly-in
+const DRONE_FOV      = Math.PI / 2.2; // wider FOV at start, narrows as it lands
+
 // ── Portrait (intro) params ───────────────────────────────────────────────────
 const INTRO_DIST   = 2.2;
 const INTRO_CAM_Y  = 0.55;
@@ -36,7 +42,9 @@ const SKIN_BLEND   = 0.12;   // blend rate in/out
 let cameraMode  = 'intro';
 let idleTimer   = 0;
 let cameraBlend = 0;   // 0 = intro, 1 = gameplay
-let skinBlend        = 0;   // 0 = off,   1 = skin preview active
+let skinBlend   = 0;   // 0 = off,   1 = skin preview active
+let droneTimer  = 0;   // counts up to DRONE_DURATION
+let droneDone   = false;
 
 const cameraRig = {
   eyeX: 0, eyeY: 0, eyeZ: 0,
@@ -140,16 +148,32 @@ const CameraSystem = (world, collisionWorld, dt) => {
   const camY = normalY * sbi + (pp.y + SKIN_CAM_Y + swayY) * sb;
   const camZ = pp.z + cos(finalAngle) * finalRadius;
 
+  // ── Drone intro: fly in from far/high, ease-out cubic ────────────────────
+  let finalCamX = camX, finalCamY = camY, finalCamZ = camZ;
+  if (!droneDone) {
+    droneTimer = Math.min(droneTimer + dt, DRONE_DURATION);
+    if (droneTimer >= DRONE_DURATION) { droneDone = true; }
+    const droneEase = 1 - Math.pow(1 - droneTimer / DRONE_DURATION, 3);
+    const droneAngle = yawRad; // approach from in front of player
+    const dX = pp.x + sin(droneAngle) * DRONE_DIST;
+    const dY = pp.y + INTRO_CAM_Y + DRONE_H;
+    const dZ = pp.z + cos(droneAngle) * DRONE_DIST;
+    finalCamX = dX + (camX - dX) * droneEase;
+    finalCamY = dY + (camY - dY) * droneEase;
+    finalCamZ = dZ + (camZ - dZ) * droneEase;
+  }
+
   // ── Rig smooth ────────────────────────────────────────────────────────────
-  // Intro: instant tracking (no drift-in).  Gameplay: SMOOTH.  Skin: SMOOTH
-  // (camera moves to skin position, not teleports).
+  // Drone: track computed position directly (ease drives motion).
+  // Intro: instant tracking (no drift-in).  Gameplay: SMOOTH.  Skin: SMOOTH.
   const s  = !cameraRig.initialized ? 1
-           : sb > 0.01              ? SMOOTH            // skin transition
+           : !droneDone             ? 1
+           : sb > 0.01              ? SMOOTH
            :                          bi * 1.0 + b * SMOOTH;
   const si = 1 - s;
-  cameraRig.eyeX        = cameraRig.eyeX * si + camX * s;
-  cameraRig.eyeY        = cameraRig.eyeY * si + camY * s;
-  cameraRig.eyeZ        = cameraRig.eyeZ * si + camZ * s;
+  cameraRig.eyeX        = cameraRig.eyeX * si + finalCamX * s;
+  cameraRig.eyeY        = cameraRig.eyeY * si + finalCamY * s;
+  cameraRig.eyeZ        = cameraRig.eyeZ * si + finalCamZ * s;
   cameraRig.initialized = true;
 
   if (!cameraRig.camPosWorld)
@@ -161,8 +185,10 @@ const CameraSystem = (world, collisionWorld, dt) => {
   const normalLookY = INTRO_LOOK_Y * bi + cfg.lookAtYOffset * b;
   const lookAtY     = normalLookY  * sbi + SKIN_LOOK_Y * sb;
 
-  const normalFOV = INTRO_FOV * bi + GAME_FOV * b;
-  const fov       = normalFOV * sbi + SKIN_FOV * sb;
+  const normalFOV  = INTRO_FOV * bi + GAME_FOV * b;
+  const blendedFOV = normalFOV * sbi + SKIN_FOV * sb;
+  const droneEaseF = droneDone ? 1 : 1 - Math.pow(1 - droneTimer / DRONE_DURATION, 3);
+  const fov        = DRONE_FOV + (blendedFOV - DRONE_FOV) * droneEaseF;
 
   const eye    = worldToP5(cameraRig.eyeX, cameraRig.eyeY, cameraRig.eyeZ);
   const lookAt = worldToP5(pp.x, pp.y + lookAtY, pp.z);
