@@ -98,9 +98,10 @@ const CameraSystem = (world, collisionWorld, dt) => {
   const cosPitch = cos(pitchRad);
   const sinPitch = sin(pitchRad);
 
-  // ── Idle sway (scales to zero in gameplay and skin modes) ─────────────────
-  const ts    = millis() * 0.001;
-  const swayScale = bi * (1 - skinBlend);   // only in intro, not skin
+  // ── Idle sway — active in intro AND skin preview; fades out in gameplay ──────
+  // swayScale: 1 when intro or skin, 0 when gameplay, blends between.
+  const ts        = millis() * 0.001;
+  const swayScale = bi * (1 - skinBlend) + skinBlend;  // off only when b≈1 && sb≈0
   const swayY = swayScale * (0.022 * Math.sin(ts * 1.3) + 0.010 * Math.sin(ts * 2.1));
   const swayR = swayScale *  0.04  * Math.sin(ts * 0.7);
   const swayA = swayScale *  0.006 * Math.sin(ts * 0.45);
@@ -113,23 +114,28 @@ const CameraSystem = (world, collisionWorld, dt) => {
   const introY = pp.y + INTRO_CAM_Y;
   const gameY  = pp.y + gameDist * sinPitch + cfg.height;
 
-  const normalX = pp.x + sin(arcAngle + swayA) * dist * cosPitch;
   const normalY = introY * bi + gameY * b + swayY;
-  const normalZ = pp.z + cos(arcAngle + swayA) * dist * cosPitch;
 
-  // ── Skin preview target (full-body, face-on, horizontal) ──────────────────
-  // Camera sits in front of the player at body-centre height, looking straight
-  // across — wide enough to see feet-to-head with comfortable margins.
-  const skinX = pp.x + sin(yawRad) * SKIN_DIST;
-  const skinY = pp.y + SKIN_CAM_Y;
-  const skinZ = pp.z + cos(yawRad) * SKIN_DIST;
-
-  // ── Blend skin preview over normal target ─────────────────────────────────
+  // ── Skin preview: arc camera around player, never through ─────────────────
+  // Blend the *orbit angle* along the shortest arc (arcAngle → yawRad) so the
+  // camera sweeps around the outside of the player.  Sway is added on top of
+  // the blended angle so it's fully present in both intro and skin modes.
   const sb  = skinBlend;
   const sbi = 1 - sb;
-  const camX = normalX * sbi + skinX * sb;
-  const camY = normalY * sbi + skinY * sb;
-  const camZ = normalZ * sbi + skinZ * sb;
+
+  // Arc without sway first, then sway on top (prevents sway cancelling at sb=1)
+  let skinAngleDiff = yawRad - arcAngle;
+  while (skinAngleDiff >  PI) skinAngleDiff -= TWO_PI;
+  while (skinAngleDiff < -PI) skinAngleDiff += TWO_PI;
+  const finalAngle = arcAngle + skinAngleDiff * sb + swayA;
+
+  // Blend XZ orbit radius; add swayR to skin target so depth oscillation carries through
+  const normalRadius = dist * cosPitch;
+  const finalRadius  = normalRadius * sbi + (SKIN_DIST + swayR) * sb;
+
+  const camX = pp.x + sin(finalAngle) * finalRadius;
+  const camY = normalY * sbi + (pp.y + SKIN_CAM_Y + swayY) * sb;
+  const camZ = pp.z + cos(finalAngle) * finalRadius;
 
   // ── Rig smooth ────────────────────────────────────────────────────────────
   // Intro: instant tracking (no drift-in).  Gameplay: SMOOTH.  Skin: SMOOTH

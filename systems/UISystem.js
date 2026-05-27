@@ -117,7 +117,8 @@ const setupUI = (onEmoteFired) => {
   const SKIN_FRAMES = 3;
   const skinBtn     = el('button', { id: 'pg-skin-btn', class: 'pg-btn' });
   const skinBtnImg  = el('div', { style: [
-    'width:40px', 'height:40px',
+    // width/height are overwritten by setSkinBtnAspect() once the image loads
+    'width:36px', 'height:36px',
     `background-image:url(${SKINS[0].front})`,
     `background-size:${SKIN_FRAMES * 100}% 100%`,
     'background-position:0% 0%',
@@ -127,6 +128,24 @@ const setupUI = (onEmoteFired) => {
   ].join(';') });
   skinBtn.appendChild(skinBtnImg);
   document.body.appendChild(skinBtn);
+
+  // Resize the skin-button image div to the frame's true aspect ratio.
+  // Called once on startup and again each time the skin is cycled.
+  const MAX_BTN_SIZE = 42; // max dimension (px) to fit inside the 54px button
+  const setSkinBtnAspect = (src) => {
+    const probe = new Image();
+    probe.onload = () => {
+      const frameW = probe.naturalWidth / SKIN_FRAMES;
+      const frameH = probe.naturalHeight;
+      let w, h;
+      if (frameW / frameH >= 1) { w = MAX_BTN_SIZE; h = Math.round(MAX_BTN_SIZE * frameH / frameW); }
+      else                       { h = MAX_BTN_SIZE; w = Math.round(MAX_BTN_SIZE * frameW / frameH); }
+      skinBtnImg.style.width  = `${w}px`;
+      skinBtnImg.style.height = `${h}px`;
+    };
+    probe.src = src;
+  };
+  setSkinBtnAspect(SKINS[0].front);
 
   // ── Full-screen tap-to-confirm overlay ────────────────────────────────────
   const skinOverlay = el('div', { id: 'pg-skin-overlay' });
@@ -165,6 +184,7 @@ const setupUI = (onEmoteFired) => {
     uiState.selectedSkin = (uiState.selectedSkin + dir + SKINS.length) % SKINS.length;
     const skin = SKINS[uiState.selectedSkin];
     skinBtnImg.style.backgroundImage = `url(${skin.front})`;
+    setSkinBtnAspect(skin.front);
 
     // Swap live player textures so the in-world sprite updates immediately
     loadImage(skin.front, img => { PLAYER_FRONT_TEX = img; });
@@ -175,8 +195,10 @@ const setupUI = (onEmoteFired) => {
 
   skinBtn.addEventListener('pointerdown', e => { e.preventDefault(); openSkin(); });
 
-  // Tap centre → confirm skin
-  skinOverlay.addEventListener('pointerdown', e => { e.preventDefault(); closeSkin(); });
+  // Tap centre → confirm skin.
+  // stopPropagation prevents the event reaching the document-level TouchInputSystem
+  // listener, which would otherwise queue a jump on the frame after closing.
+  skinOverlay.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); closeSkin(); });
 
   // Arrow buttons — stop propagation so they don't also close the overlay
   prevBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); cycleSkin(-1); });
