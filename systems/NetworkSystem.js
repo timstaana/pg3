@@ -50,6 +50,7 @@ const connect = (serverUrl, room = 'default') => {
       networkState.connected = true;
       networkState.reconnecting = false;
       networkState.reconnectAttempt = 0;
+      showToast('Connected!');
 
       // Join room
       const state = getLocalState();
@@ -75,6 +76,7 @@ const connect = (serverUrl, room = 'default') => {
       console.log(`Disconnected (code: ${event.code})`);
       networkState.connected = false;
       networkState.ws = null;
+      showToast('Disconnected');
 
       // Clean up old remote players before reconnecting
       networkState.remotePlayers.forEach(entity => {
@@ -108,6 +110,7 @@ const attemptReconnect = () => {
   const delay = Math.min(1000 * Math.pow(1.5, networkState.reconnectAttempt - 1), 30000);
 
   console.log(`Reconnecting in ${(delay / 1000).toFixed(1)}s (${networkState.reconnectAttempt}/${networkState.maxReconnectAttempts})`);
+  showToast('Reconnecting...');
 
   networkState.reconnectTimeout = setTimeout(() => {
     networkState.reconnecting = false;
@@ -152,19 +155,25 @@ const send = (msg) => {
 
 const handleMessage = (msg) => {
   switch (msg.type) {
-    case 'room_state':
-      // Initial room state
+    case 'room_state': {
       msg.players.forEach(p => createRemotePlayer(p.playerId, p.state));
-      console.log(`Joined room with ${msg.players.length} player(s)`);
+      const n = msg.players.length;
+      showToast(n === 0 ? 'No other players in the room'
+              : n === 1 ? '1 other player in the room'
+                        : `${n} other players in the room`);
+      console.log(`Joined room with ${n} player(s)`);
       break;
+    }
 
     case 'player_joined':
       createRemotePlayer(msg.playerId, msg.state);
+      showToast('A player joined');
       console.log(`Player ${msg.playerId.slice(-4)} joined`);
       break;
 
     case 'player_left':
       removeRemotePlayer(msg.playerId);
+      showToast('A player left');
       console.log(`Player ${msg.playerId.slice(-4)} left`);
       break;
 

@@ -416,3 +416,36 @@ const setupUI = (onEmoteFired) => {
     fireEmote: () => { if (onEmoteFired) onEmoteFired(EMOTES[uiState.selectedEmote].id); },
   };
 };
+
+// ── Toast notifications ────────────────────────────────────────────────────
+// showToast(msg, duration?) — black text, no bg, fades out. Call from anywhere.
+
+let _toastContainer = null;
+
+const showToast = (msg, duration = 3000) => {
+  if (!_toastContainer) {
+    _toastContainer = el('div', {}, '');
+    _toastContainer.style.cssText = [
+      'position:fixed', 'bottom:14px', 'left:14px',
+      'z-index:500',
+      'display:flex', 'flex-direction:column', 'gap:6px',
+      'pointer-events:none',
+    ].join(';');
+    document.body.appendChild(_toastContainer);
+  }
+
+  const div = document.createElement('div');
+  div.textContent = msg;
+  div.style.cssText = 'font:10px/1.4 sans-serif;color:#000;opacity:0;transition:opacity 0.2s';
+  _toastContainer.appendChild(div);
+
+  // Fade in (double rAF so transition fires after paint)
+  requestAnimationFrame(() => requestAnimationFrame(() => { div.style.opacity = '1'; }));
+
+  // Fade out then remove
+  setTimeout(() => {
+    div.style.transition = 'opacity 0.6s';
+    div.style.opacity    = '0';
+    setTimeout(() => div.remove(), 600);
+  }, duration);
+};
