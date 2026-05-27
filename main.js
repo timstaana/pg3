@@ -1,5 +1,59 @@
-// main.js - p5.js 3D Platformer with ECS Architecture
-// Game loop orchestrator and system execution
+// main.js - Simple 3D platformer
+
+// ========== Physics & Player Constants ==========
+
+const WORLD_SCALE      = 50;
+const GRAVITY          = 30;
+const MAX_SLOPE_DEG    = 50.0;
+const MIN_GROUND_NY    = Math.cos(MAX_SLOPE_DEG * Math.PI / 180);
+const GROUNDING_TOLERANCE = 0.001;
+const COLLISION_CONFIG = { queryMargin: 0.5, downMargin: 2.0, upMargin: 2.0 };
+const JUMP_HEIGHT      = 1.5;
+const TERMINAL_VELOCITY = 20.0;
+const PLAYER_MOVE_SPEED = 5.0;
+const PLAYER_TURN_SPEED = 80.0;
+
+const CAMERA_CONFIG = {
+  distance:      5.0,
+  minDistance:   2.0,
+  height:        1.75,
+  pitch:         10,
+  lookAtYOffset: 1.5
+};
+
+// ========== Multiplayer Config ==========
+// serverUrl: null = auto-detect from page URL (works for both local and deployed)
+
+const MULTIPLAYER = {
+  enabled:   true,
+  serverUrl: null,
+  room:      'basic'
+};
+
+// ========== Level Definition ==========
+// pos = center of box, size = [width, height, depth]
+// Platform reachability: jump height ≈ 1.5 units above player center.
+// Player center on a surface = surfaceTop + 0.4 (collision radius).
+
+const LEVEL_BOXES = [
+  // Large floor
+  { id: 'floor', pos: [0,    0,    0],   rot: [0, 0,   0], scale: 1, size: [24, 1,   24],  color: [65, 80,  95]  },
+  // Step 1 — easy first jump from floor (top at 1.75, reachable from floor center 0.9 + 1.5 = 2.4)
+  { id: 'p1',    pos: [0,    1.5, -7],   rot: [0, 0,   0], scale: 1, size: [6,  0.5,  4],  color: [75, 110, 75]  },
+  // Step 2 — from p1 (reachable from p1 center 2.15 + 1.5 = 3.65 → need 3.15)
+  { id: 'p2',    pos: [7,    2.5, -6],   rot: [0, 0,   0], scale: 1, size: [4,  0.5,  4],  color: [110, 75, 75]  },
+  // Side platform — same height as p2, reachable from p1
+  { id: 'p3',    pos: [-6,   2.5, -5],   rot: [0, 0,   0], scale: 1, size: [4,  0.5,  4],  color: [110, 110, 65] },
+  // High platform — from p2 (center 3.15 + 1.5 = 4.65 → need 4.4)
+  { id: 'p4',    pos: [2,    3.75,-12],  rot: [0, 0,   0], scale: 1, size: [5,  0.5,  5],  color: [75, 75,  120] },
+  // Highest point — from p4 (center 4.4 + 1.5 = 5.9 → need 5.4)
+  { id: 'p5',    pos: [-2,   4.75, -9],  rot: [0, 0,   0], scale: 1, size: [3,  0.5,  3],  color: [120, 75, 120] },
+  // Tilted ramp (15° roll)
+  { id: 'ramp',  pos: [10,   1.0,  5],   rot: [0, 0, -15], scale: 1, size: [8,  0.5,  6],  color: [100, 90, 65]  },
+];
+
+const SPAWN_POS = [0, 3, 0];
+const SPAWN_YAW = 0;
 
 // ========== Game State ==========
 
@@ -7,387 +61,176 @@ let world;
 let collisionWorld;
 let player;
 let lastTime = 0;
-let debugTextEntity;
 
-// Global config constants (loaded from JSON)
-let WORLD_SCALE;
-let GRAVITY;
-let MAX_SLOPE_DEG;
-let MIN_GROUND_NY;
-let GROUNDING_TOLERANCE;
-let COLLISION_CONFIG;
-let JUMP_HEIGHT;
-let TERMINAL_VELOCITY;
-let SLOPE_SPEED_FACTOR;
-let PLAYER_MOVE_SPEED;
-let PLAYER_TURN_SPEED;
-let CAMERA_CONFIG;
-let INTERACTION_CONFIG;
-let LIGHTBOX_CONFIG;
-
-// Player textures
 let PLAYER_FRONT_TEX;
 let PLAYER_BACK_TEX;
+let fpsDiv;
 
-// NPC avatar textures (map of avatarId -> {front, back})
-let NPC_AVATAR_TEXTURES = {};
+// ========== Level Builder ==========
 
-// Asset streaming registry
-const ASSET_REGISTRY = {
-  loadQueue: [],              // Priority queue of {entity, assetType, priority}
-  activeLoads: new Set(),     // Currently loading URLs to prevent duplicates
-  maxConcurrentLoads: 1,      // Limit parallel fetches (lower = less stuttering)
-  frameCounter: 0,            // Global frame counter for LRU tracking
-  levelDir: '',               // Current level directory for asset paths
-  lastLoadFrame: 0,           // Last frame when a load was started
-  loadCooldown: 60            // Wait N frames between starting new loads (1 second at 60fps)
-};
+const buildLevel = () => {
+  LEVEL_BOXES.forEach(box => {
+    const pos   = createVector(...box.pos);
+    const rot   = createVector(...box.rot);
+    const scale = typeof box.scale === 'number'
+      ? createVector(box.scale, box.scale, box.scale)
+      : createVector(...box.scale);
 
-// Asset streaming configuration
-const STREAMING_CONFIG = {
-  maxRenderDistance: 50.0,      // Existing from CULLING_CONFIG
-  preloadDistance: 60.0,        // Load before entering view
-  unloadDistance: 100.0,        // Unload when far away
-  priorityUpdateInterval: 30,   // Frames between priority recalculation
-  unloadFrameThreshold: 300     // Unload after ~5 seconds unseen (at 60fps)
-};
+    addBoxCollider(collisionWorld, pos, rot, scale, box.size);
+    const aabb = computeBoxAABB(pos, rot, scale, box.size);
 
-// ========== Loading Screen ==========
-
-let loadingScreen = null;
-let loadingFrame = 0;
-
-const createLoadingScreen = () => {
-  loadingScreen = document.createElement('div');
-  loadingScreen.id = 'loading-screen';
-  Object.assign(loadingScreen.style, {
-    position: 'fixed',
-    top: '0',
-    left: '0',
-    width: '100vw',
-    height: '100vh',
-    backgroundColor: '#000',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: '9999',
-    fontFamily: 'monospace',
-    color: '#fff',
-    fontSize: '20px'
+    createEntity(world, {
+      Collider: {
+        id: box.id,
+        type: 'box',
+        pos, rot, scale,
+        size:  box.size,
+        color: box.color || [80, 120, 160],
+        aabb
+      }
+    });
   });
 
-  const loadingText = document.createElement('div');
-  loadingText.id = 'loading-text';
-  loadingText.textContent = 'Loading...';
+  // Create player entity
+  const jumpSpeed = Math.sqrt(2 * GRAVITY * JUMP_HEIGHT);
+  const spawnPos  = createVector(...SPAWN_POS);
 
-  const loadingBar = document.createElement('div');
-  loadingBar.id = 'loading-bar';
-  loadingBar.style.marginTop = '20px';
-  loadingBar.textContent = '[          ]';
-
-  loadingScreen.appendChild(loadingText);
-  loadingScreen.appendChild(loadingBar);
-  document.body.appendChild(loadingScreen);
-
-  // Animate loading bar
-  const animateLoader = () => {
-    if (!loadingScreen || !loadingScreen.parentElement) return;
-
-    loadingFrame++;
-    const frames = ['[/         ]', '[ -        ]', '[  \\       ]', '[   |      ]',
-                    '[    /     ]', '[     -    ]', '[      \\   ]', '[       |  ]',
-                    '[        / ]', '[         -]', '[        \\ ]', '[       |  ]'];
-    const bar = document.getElementById('loading-bar');
-    if (bar) {
-      bar.textContent = frames[loadingFrame % frames.length];
+  player = createEntity(world, {
+    Player: {
+      radius:     0.4,
+      grounded:   false,
+      groundNormal: createVector(0, 1, 0),
+      jumpSpeed,
+      moveSpeed:  PLAYER_MOVE_SPEED,
+      turnSpeed:  PLAYER_TURN_SPEED,
+      spawnPos:   spawnPos.copy(),
+      spawnYaw:   SPAWN_YAW
+    },
+    Transform: {
+      pos:   spawnPos.copy(),
+      rot:   createVector(0, SPAWN_YAW, 0),
+      scale: createVector(1, 1, 1)
+    },
+    Velocity: {
+      vel: createVector(0, 0, 0)
+    },
+    Input: {
+      forward: 0,
+      turn:    0,
+      jump:    false
+    },
+    Animation: {
+      currentFrame:    0,
+      frameTime:       0,
+      framesPerSecond: 6,
+      totalFrames:     3,
+      idleFrame:       0,
+      walkFrames:      [1, 2]
     }
-    setTimeout(animateLoader, 100);
-  };
-  animateLoader();
+  });
 };
 
-const removeLoadingScreen = () => {
-  if (loadingScreen && loadingScreen.parentElement) {
-    loadingScreen.style.opacity = '0';
-    loadingScreen.style.transition = 'opacity 0.5s';
-    setTimeout(() => {
-      if (loadingScreen && loadingScreen.parentElement) {
-        document.body.removeChild(loadingScreen);
-        loadingScreen = null;
-      }
-    }, 500);
-  }
-};
-
-// ========== Initialization ==========
+// ========== Setup ==========
 
 async function setup() {
-  createLoadingScreen();
-
   createCanvas(windowWidth, windowHeight, WEBGL);
 
-  // Prevent iOS from treating canvas as an image
+  // Prevent iOS long-press / drag / zoom gestures on canvas
   const canvas = document.querySelector('canvas');
   if (canvas) {
-    // CSS properties to prevent image-like behavior
-    canvas.style.touchAction = 'none';
-    canvas.style.userSelect = 'none';
-    canvas.style.webkitUserSelect = 'none';
-    canvas.style.webkitTouchCallout = 'none';
+    canvas.style.touchAction            = 'none';
+    canvas.style.userSelect             = 'none';
+    canvas.style.webkitUserSelect       = 'none';
+    canvas.style.webkitTouchCallout     = 'none';
     canvas.style.webkitTapHighlightColor = 'transparent';
-    canvas.style.webkitUserDrag = 'none';
-    canvas.style.userDrag = 'none';
-
-    // Prevent context menu and drag events (don't interfere with touch/pointer events)
-    // TouchInputSystem handles pointer events with its own preventDefault
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-    canvas.addEventListener('dragstart', (e) => e.preventDefault());
-
-    // Prevent iOS long-press image save menu
-    canvas.addEventListener('touchstart', (e) => {
-      if (e.touches.length > 1) {
-        e.preventDefault(); // Only prevent multi-touch zoom
-      }
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+    canvas.addEventListener('dragstart',   e => e.preventDefault());
+    canvas.addEventListener('touchstart',  e => {
+      if (e.touches.length > 1) e.preventDefault();
     }, { passive: false });
   }
 
-  // Load configuration
-  const configResponse = await fetch('config.json');
-  const config = await configResponse.json();
+  // Simple FPS display
+  fpsDiv = document.createElement('div');
+  fpsDiv.style.cssText = [
+    'position:fixed', 'top:8px', 'left:8px', 'color:#fff',
+    'font:13px monospace', 'background:rgba(0,0,0,0.5)',
+    'padding:4px 8px', 'border-radius:4px',
+    'pointer-events:none', 'z-index:100'
+  ].join(';');
+  document.body.appendChild(fpsDiv);
 
-  WORLD_SCALE = config.world.scale;
-  GRAVITY = config.physics.gravity;
-  MAX_SLOPE_DEG = config.physics.maxSlopeDeg;
-  MIN_GROUND_NY = Math.cos(MAX_SLOPE_DEG * Math.PI / 180);
-  GROUNDING_TOLERANCE = config.physics.groundingTolerance;
-  COLLISION_CONFIG = config.collision;
-  JUMP_HEIGHT = config.physics.jumpHeight;
-  TERMINAL_VELOCITY = config.physics.terminalVelocity;
-  SLOPE_SPEED_FACTOR = config.physics.slopeSpeedFactor;
-  PLAYER_MOVE_SPEED = config.player.moveSpeed;
-  PLAYER_TURN_SPEED = config.player.turnSpeed;
-  CAMERA_CONFIG = config.camera;
-  INTERACTION_CONFIG = config.interaction;
-  LIGHTBOX_CONFIG = config.lightbox;
-
-  world = createWorld();
+  // Build world
+  world          = createWorld();
   collisionWorld = createCollisionWorld();
 
   setupInputListeners();
+  buildLevel();
 
-  const levelPath = `levels/${config.defaultLevel}/${config.defaultLevel}.json`;
-  const result = await loadLevel(levelPath, world, collisionWorld);
-  player = result.player;
+  // Load player sprites
+  PLAYER_FRONT_TEX = await new Promise((res, rej) =>
+    loadImage('assets/player_front.png', res, rej)
+  );
+  PLAYER_BACK_TEX = await new Promise((res, rej) =>
+    loadImage('assets/player_back.png', res, rej)
+  );
 
-  // Load player textures (support level-specific player configuration)
-  const levelDir = levelPath.substring(0, levelPath.lastIndexOf('/'));
-  const levelData = result.levelData;
-
-  // Check if level defines custom player configuration with multiple avatars
-  const playerConfig = levelData.player || {};
-  let frontSpritePath = 'assets/player_front.png';
-  let backSpritePath = 'assets/player_back.png';
-
-  if (playerConfig.avatars && playerConfig.avatars.length > 0) {
-    // Support multiple avatar options
-    // For now, use the selected avatar or default to first one
-    const selectedId = playerConfig.selectedAvatar || playerConfig.avatars[0].id;
-    const avatar = playerConfig.avatars.find(a => a.id === selectedId) || playerConfig.avatars[0];
-
-    frontSpritePath = `${levelDir}/${avatar.front}`;
-    backSpritePath = `${levelDir}/${avatar.back}`;
-    console.log(`Loading avatar: ${avatar.name || avatar.id} (${selectedId})`);
-  }
-
-  console.log(`Loading player sprites: front=${frontSpritePath}, back=${backSpritePath}`);
-
-  PLAYER_FRONT_TEX = await new Promise((resolve, reject) => {
-    loadImage(frontSpritePath, resolve, reject);
-  });
-  PLAYER_BACK_TEX = await new Promise((resolve, reject) => {
-    loadImage(backSpritePath, resolve, reject);
-  });
-
-  // Load NPC avatar textures (load all avatars defined in level)
-  if (playerConfig.avatars && playerConfig.avatars.length > 0) {
-    console.log(`Loading ${playerConfig.avatars.length} NPC avatar(s)...`);
-    for (const avatar of playerConfig.avatars) {
-      const frontPath = `${levelDir}/${avatar.front}`;
-      const backPath = `${levelDir}/${avatar.back}`;
-
-      NPC_AVATAR_TEXTURES[avatar.id] = {
-        front: await new Promise((resolve, reject) => loadImage(frontPath, resolve, reject)),
-        back: await new Promise((resolve, reject) => loadImage(backPath, resolve, reject))
-      };
-      console.log(`Loaded NPC avatar: ${avatar.id} (${avatar.name || 'unnamed'})`);
-    }
-  }
-
-  // Always add default avatar using player textures
-  NPC_AVATAR_TEXTURES['default'] = {
-    front: PLAYER_FRONT_TEX,
-    back: PLAYER_BACK_TEX
-  };
-
-  // Load alpha cutout shader (with error handling for p5.js v2)
-  // p5.js v2 returns Promises from loadShader, so we need to await them
+  // Load alpha-cutout shader (for transparent sprite edges)
   try {
-    alphaCutoutShader = await loadShader('shaders/alphaCutout.vert', 'shaders/alphaCutout.frag');
-    console.log('Alpha cutout shader loaded successfully');
+    alphaCutoutShader = await loadShader(
+      'shaders/alphaCutout.vert',
+      'shaders/alphaCutout.frag'
+    );
   } catch (err) {
-    console.warn('Shader failed to load, rendering without alpha cutout:', err);
+    console.warn('Shader load failed, sprites will have square edges:', err);
     alphaCutoutShader = null;
   }
 
-  console.log('Setup complete!');
-  console.log(`Entities: ${world.entities.length}`);
-  console.log(`Triangles: ${collisionWorld.tris.length}`);
-
   lastTime = millis() / 1000;
 
-  initCanvasOverlay();
-
-  debugTextEntity = createEntity(world, {
-    CanvasOverlay: {
-      x: 10,
-      y: 10,
-      text: ['FPS: --', 'Pos: --', 'Grounded: --', 'Slope: --', 'Triangles: --'],
-      fontSize: 14,
-      color: 'white',
-      bgColor: 'rgba(0, 0, 0, 0.7)',
-      padding: 10
+  // Connect multiplayer
+  if (MULTIPLAYER.enabled) {
+    let url = MULTIPLAYER.serverUrl;
+    if (!url) {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host  = window.location.hostname;
+      const port  = window.location.port;
+      url = port ? `${proto}//${host}:${port}` : `${proto}//${host}`;
     }
-  });
-
-  // Initialize multiplayer if enabled
-  if (config.multiplayer && config.multiplayer.enabled) {
-    console.log('Multiplayer enabled - connecting to server...');
-
-    // Auto-detect server URL from current page URL (unless manually specified)
-    let serverUrl = config.multiplayer.serverUrl;
-    if (!serverUrl) {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const hostname = window.location.hostname;
-      const port = window.location.port;
-
-      // Only add port if explicitly set (for local dev like localhost:8080)
-      // On Fly.io, no port is needed (uses standard HTTPS/WSS ports)
-      serverUrl = port ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`;
-      console.log(`Auto-detected server URL: ${serverUrl}`);
-    }
-
-    // Use level name as room (default behavior if room not specified)
-    const room = config.multiplayer.room || config.defaultLevel || 'default';
-    console.log(`Joining multiplayer room: "${room}"`);
-    enableMultiplayer(serverUrl, room);
+    enableMultiplayer(url, MULTIPLAYER.room);
   }
-
-  // Remove loading screen
-  removeLoadingScreen();
 }
 
 // ========== Game Loop ==========
 
-const runSystems = (dt) => {
+function draw() {
+  if (!world || !player) { background(20); return; }
+
+  const now = millis() / 1000;
+  const dt  = constrain(now - lastTime, 0, 0.033);
+  lastTime  = now;
+
   TouchInputSystem(world, dt);
   InputSystem(world, dt);
   PlayerMotionSystem(world, dt);
-  ScriptSystem(world, dt); // Process entity scripts
   GravitySystem(world, dt);
   IntegrateSystem(world, dt);
   CollisionSystem(world, collisionWorld, dt);
   RespawnSystem(world, dt);
-  NetworkSystem(world, dt); // Multiplayer networking (before animation for movement flags)
+  NetworkSystem(world, dt);
   AnimationSystem(world, dt);
-  InteractionSystem(world);
-  DialogueSystem(world, dt); // NPC dialogue and interactions
-  LightboxSystem(world, dt);
-  AssetStreamingSystem(world, dt); // Progressive asset loading
   CameraSystem(world, collisionWorld);
   RenderSystem(world, collisionWorld, dt);
-  CanvasOverlaySystem(world, dt);
   TouchJoystickRenderSystem(world, dt, getTouchState());
-};
 
-function draw() {
-  if (!world || !player) {
-    background(20);
-    return;
+  // Update FPS counter every 30 frames
+  if (frameCount % 30 === 0) {
+    fpsDiv.textContent = `${round(frameRate())} fps`;
   }
-
-  const currentTime = millis() / 1000;
-  const dt = currentTime - lastTime;
-  lastTime = currentTime;
-
-  const clampedDt = constrain(dt, 0, 0.033);
-
-  runSystems(clampedDt);
-  updateDebugInfo(dt);
 }
 
-// ========== Debug Info ==========
-
-let debugUpdateCounter = 0;
-const DEBUG_UPDATE_INTERVAL = 3; // Update debug text every N frames
-
-const updateDebugInfo = (dt) => {
-  if (!player || !collisionWorld || !debugTextEntity) return;
-
-  // Throttle debug updates to every N frames for performance
-  debugUpdateCounter++;
-  if (debugUpdateCounter < DEBUG_UPDATE_INTERVAL) return;
-  debugUpdateCounter = 0;
-
-  const fps = round(1 / dt);
-  const { Transform: { pos }, Player: playerData } = player;
-
-  // Calculate slope angle from current normal
-  let slopeAngle = 0;
-  let slopeType = '--';
-
-  if (playerData.grounded && playerData.groundNormal) {
-    slopeAngle = Math.acos(playerData.groundNormal.y) * 180 / Math.PI;
-    slopeType = 'Ground';
-  } else if (playerData.steepSlope) {
-    slopeAngle = Math.acos(playerData.steepSlope.y) * 180 / Math.PI;
-    slopeType = 'Steep';
-  }
-
-  const debugLines = [
-    `FPS: ${fps}`,
-    `Pos: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)})`,
-    `Grounded: ${playerData.grounded}`,
-    `Slope: ${slopeAngle.toFixed(1)}° (${slopeType})`,
-    `Triangles: ${collisionWorld.tris.length}`,
-  ];
-
-  // Add network stats if multiplayer active
-  if (typeof getNetworkState === 'function') {
-    const netState = getNetworkState();
-    if (netState.connected) {
-      debugLines.push('');
-      debugLines.push('=== NETWORK ===');
-      debugLines.push(`Status: ✓ Connected`);
-      debugLines.push(`Players: ${netState.remotePlayers.size}`);
-
-      if (netState.reconnecting) {
-        debugLines.push(`Reconnecting (${netState.reconnectAttempt}/${netState.maxReconnectAttempts})`);
-      }
-    } else if (netState.reconnecting) {
-      debugLines.push('');
-      debugLines.push('=== NETWORK ===');
-      debugLines.push('Status: Reconnecting...');
-    }
-  }
-
-  debugTextEntity.CanvasOverlay.text = debugLines;
-};
-
-// ========== Window Events ==========
+// ========== Window Resize ==========
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
-  resizeCanvasOverlay();
-  clearTextGraphicsCache();
 }

@@ -1,71 +1,60 @@
-// CameraSystem.js - Third-person camera with collision avoidance
+// CameraSystem.js - Third-person camera with collision avoidance (boom arm)
 
 const SMOOTH = 0.12;
 
-// Runtime camera state
 const cameraRig = {
-  eye: null,
-  center: null,
+  eye:         null,
+  center:      null,
   initialized: false,
   camPosWorld: null,
   lookAtWorld: null
 };
 
 const worldToP5 = (pos) => createVector(
-  pos.x * WORLD_SCALE,
-  -pos.y * WORLD_SCALE,
-  pos.z * WORLD_SCALE
+  pos.x *  WORLD_SCALE,
+  pos.y * -WORLD_SCALE,
+  pos.z *  WORLD_SCALE
 );
 
-// Raycast to check for obstacles between two points
+// Sweep the boom arm toward the camera to detect obstructing geometry
 const raycastObstacle = (from, to, collisionWorld, checkRadius = 0.3) => {
-  const dir = p5.Vector.sub(to, from);
+  const dir     = p5.Vector.sub(to, from);
   const maxDist = dir.mag();
-
   if (maxDist < 0.001) return null;
-
   dir.normalize();
 
-  // Use AABB to quickly filter triangles near the ray
+  // Broad-phase: only test tris whose AABB overlaps the ray sweep
+  const pad    = checkRadius;
   const rayMin = createVector(
-    Math.min(from.x, to.x) - checkRadius,
-    Math.min(from.y, to.y) - checkRadius,
-    Math.min(from.z, to.z) - checkRadius
+    Math.min(from.x, to.x) - pad,
+    Math.min(from.y, to.y) - pad,
+    Math.min(from.z, to.z) - pad
   );
   const rayMax = createVector(
-    Math.max(from.x, to.x) + checkRadius,
-    Math.max(from.y, to.y) + checkRadius,
-    Math.max(from.z, to.z) + checkRadius
+    Math.max(from.x, to.x) + pad,
+    Math.max(from.y, to.y) + pad,
+    Math.max(from.z, to.z) + pad
   );
 
-  // Only check triangles that overlap the ray bounding box
-  const candidates = collisionWorld.tris.filter(tri => {
-    const aabb = tri.aabb;
-    return !(aabb.maxX < rayMin.x || aabb.minX > rayMax.x ||
-             aabb.maxY < rayMin.y || aabb.minY > rayMax.y ||
-             aabb.maxZ < rayMin.z || aabb.minZ > rayMax.z);
-  });
+  const candidates = collisionWorld.tris.filter(({ aabb }) =>
+    !(aabb.maxX < rayMin.x || aabb.minX > rayMax.x ||
+      aabb.maxY < rayMin.y || aabb.minY > rayMax.y ||
+      aabb.maxZ < rayMin.z || aabb.minZ > rayMax.z)
+  );
 
   const steps = Math.min(8, Math.ceil(maxDist * 1.5));
-  const point = createVector(0, 0, 0);
+  const pt    = createVector(0, 0, 0);
 
   for (const tri of candidates) {
     for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const offset = maxDist * t;
+      const offset = maxDist * (i / steps);
+      pt.x = from.x + dir.x * offset;
+      pt.y = from.y + dir.y * offset;
+      pt.z = from.z + dir.z * offset;
 
-      point.x = from.x + dir.x * offset;
-      point.y = from.y + dir.y * offset;
-      point.z = from.z + dir.z * offset;
-
-      const closest = closestPointOnTriangle(point, tri.a, tri.b, tri.c);
-      const dist = p5.Vector.dist(point, closest);
-
-      if (dist < checkRadius) {
-        return {
-          hit: true,
-          distance: offset
-        };
+      const closest = closestPointOnTriangle(pt, tri.a, tri.b, tri.c);
+      if (p5.Vector.dist(pt, closest) < checkRadius) {
+        return { hit: true, distance: offset };
       }
     }
   }
@@ -77,143 +66,52 @@ const CameraSystem = (world, collisionWorld) => {
   const players = queryEntities(world, 'Player', 'Transform');
   if (players.length === 0) return;
 
-  const player = players[0];
-  const playerPos = player.Transform.pos;
-  const playerYaw = player.Transform.rot.y;
-
-  const cfg = CAMERA_CONFIG;
-
-  // Mario 64 style: Camera on a boom arm behind player
-  const yawRad = radians(-playerYaw);
+  const { Transform: { pos: playerPos, rot } } = players[0];
+  const cfg      = CAMERA_CONFIG;
+  const yawRad   = radians(-rot.y);
   const pitchRad = radians(cfg.pitch);
+  const hDist    = cfg.distance * cos(pitchRad);
+  const vOff     = cfg.distance * sin(pitchRad) + cfg.height;
 
-  // Calculate boom arm position (distance back, height up, with pitch angle)
-  const horizontalDist = cfg.distance * cos(pitchRad);
-  const verticalOffset = cfg.distance * sin(pitchRad) + cfg.height;
+  // Desired boom-arm camera position
+  let camX = playerPos.x - sin(yawRad) * hDist;
+  let camY = playerPos.y + vOff;
+  let camZ = playerPos.z - cos(yawRad) * hDist;
 
-  // Desired camera position: behind and above player
-  const desiredX = playerPos.x - sin(yawRad) * horizontalDist;
-  const desiredY = playerPos.y + verticalOffset;
-  const desiredZ = playerPos.z - cos(yawRad) * horizontalDist;
+  // Pull camera in if wall blocks the arm
+  const pivotPos = createVector(playerPos.x, playerPos.y + cfg.lookAtYOffset, playerPos.z);
+  const obs      = raycastObstacle(pivotPos, createVector(camX, camY, camZ), collisionWorld, 0.5);
 
-  // Raycast from player to camera to check for obstacles
-  const playerCenter = createVector(playerPos.x, playerPos.y + cfg.lookAtYOffset, playerPos.z);
-  const desiredCamPos = createVector(desiredX, desiredY, desiredZ);
-  const obstacle = raycastObstacle(playerCenter, desiredCamPos, collisionWorld, 0.5);
-
-  // If blocked, pull camera closer
-  let finalX = desiredX;
-  let finalY = desiredY;
-  let finalZ = desiredZ;
-
-  if (obstacle && obstacle.hit) {
-    const blockedDist = obstacle.distance * 0.9;
-    const adjustedDist = Math.max(cfg.minDistance, blockedDist);
-
-    const adjustedHorizontalDist = adjustedDist * cos(pitchRad);
-    const adjustedVerticalOffset = adjustedDist * sin(pitchRad) + cfg.height;
-
-    finalX = playerPos.x - sin(yawRad) * adjustedHorizontalDist;
-    finalY = playerPos.y + adjustedVerticalOffset;
-    finalZ = playerPos.z - cos(yawRad) * adjustedHorizontalDist;
+  if (obs && obs.hit) {
+    const d    = Math.max(cfg.minDistance, obs.distance * 0.9);
+    camX = playerPos.x - sin(yawRad) * d * cos(pitchRad);
+    camY = playerPos.y + d * sin(pitchRad) + cfg.height;
+    camZ = playerPos.z - cos(yawRad) * d * cos(pitchRad);
   }
 
-  // Look-at point: slightly above player's position
-  const lookAtX = playerPos.x;
-  const lookAtY = playerPos.y + cfg.lookAtYOffset;
-  const lookAtZ = playerPos.z;
+  const lookX = playerPos.x;
+  const lookY = playerPos.y + cfg.lookAtYOffset;
+  const lookZ = playerPos.z;
 
-  // Blend with lightbox camera if active
-  const lightbox = typeof getLightboxState === 'function' ? getLightboxState() : null;
-  const lightboxBlend = lightbox ? lightbox.blend : 0;
-
-  // Blend with dialogue camera if active
-  const dialogue = typeof getDialogueState === 'function' ? getDialogueState() : null;
-  const dialogueActive = dialogue && dialogue.active;
-
-  let targetEyeX = finalX;
-  let targetEyeY = finalY;
-  let targetEyeZ = finalZ;
-  let targetCenterX = lookAtX;
-  let targetCenterY = lookAtY;
-  let targetCenterZ = lookAtZ;
-
-  // Prioritize dialogue camera over lightbox
-  if (dialogueActive && dialogue.focusPos) {
-    // Position camera in front of NPC, looking at NPC
-    const npcPos = dialogue.focusPos;
-    const dialogueDist = dialogue.focusDistance || 3.5;
-
-    // Get player-to-NPC direction to position camera between them
-    const toNpc = p5.Vector.sub(npcPos, playerPos);
-    const horizontalDist = Math.sqrt(toNpc.x * toNpc.x + toNpc.z * toNpc.z);
-    toNpc.y = 0;
-    toNpc.normalize();
-
-    // Camera positioned between player and NPC
-    // Use actual distance to avoid clipping when NPC is close
-    const actualOffset = Math.min(horizontalDist * 0.5, dialogueDist * 0.5);
-    const camOffset = p5.Vector.mult(toNpc, actualOffset);
-    const sideOffset = createVector(-toNpc.z, 0, toNpc.x);
-    sideOffset.mult(1.5); // Increased side offset to avoid clipping
-
-    targetEyeX = playerPos.x + camOffset.x + sideOffset.x;
-    targetEyeY = playerPos.y + 1.6; // Higher eye level to account for dialogue box
-    targetEyeZ = playerPos.z + camOffset.z + sideOffset.z;
-
-    // Look at NPC with inspection offset
-    const lookAtPos = npcPos.copy();
-    lookAtPos.y -= 0.3; // Look lower to position NPC higher in frame
-
-    // Apply inspection offset from lightbox state
-    if (lightbox && lightbox.inspectionOffset) {
-      const right = createVector(-toNpc.z, 0, toNpc.x);
-      const up = createVector(0, 1, 0);
-      lookAtPos.add(p5.Vector.mult(right, lightbox.inspectionOffset.x));
-      lookAtPos.add(p5.Vector.mult(up, -lightbox.inspectionOffset.y));
-    }
-
-    targetCenterX = lookAtPos.x;
-    targetCenterY = lookAtPos.y;
-    targetCenterZ = lookAtPos.z;
-  }
-  // If lightbox is active (and dialogue is not), blend towards lightbox camera
-  else if (lightboxBlend > 0 && lightbox.targetPos && lightbox.targetLookAt) {
-    targetEyeX = lerp(finalX, lightbox.targetPos.x, lightboxBlend);
-    targetEyeY = lerp(finalY, lightbox.targetPos.y, lightboxBlend);
-    targetEyeZ = lerp(finalZ, lightbox.targetPos.z, lightboxBlend);
-    targetCenterX = lerp(lookAtX, lightbox.targetLookAt.x, lightboxBlend);
-    targetCenterY = lerp(lookAtY, lightbox.targetLookAt.y, lightboxBlend);
-    targetCenterZ = lerp(lookAtZ, lightbox.targetLookAt.z, lightboxBlend);
-  }
-
-  // Smooth camera movement (Lakitu lag)
+  // Initialise instantly on first frame; smooth thereafter
   if (!cameraRig.initialized) {
-    cameraRig.eye = { x: targetEyeX, y: targetEyeY, z: targetEyeZ };
-    cameraRig.center = { x: targetCenterX, y: targetCenterY, z: targetCenterZ };
+    cameraRig.eye    = { x: camX,  y: camY,  z: camZ  };
+    cameraRig.center = { x: lookX, y: lookY, z: lookZ };
     cameraRig.initialized = true;
   } else {
-    // Slower smoothing in dialogue or lightbox mode
-    const smooth = (dialogueActive || lightboxBlend > 0.5) ? SMOOTH * 1.5 : SMOOTH;
-    cameraRig.eye.x = lerp(cameraRig.eye.x, targetEyeX, smooth);
-    cameraRig.eye.y = lerp(cameraRig.eye.y, targetEyeY, smooth);
-    cameraRig.eye.z = lerp(cameraRig.eye.z, targetEyeZ, smooth);
-    cameraRig.center.x = lerp(cameraRig.center.x, targetCenterX, smooth);
-    cameraRig.center.y = lerp(cameraRig.center.y, targetCenterY, smooth);
-    cameraRig.center.z = lerp(cameraRig.center.z, targetCenterZ, smooth);
+    cameraRig.eye.x = lerp(cameraRig.eye.x, camX,  SMOOTH);
+    cameraRig.eye.y = lerp(cameraRig.eye.y, camY,  SMOOTH);
+    cameraRig.eye.z = lerp(cameraRig.eye.z, camZ,  SMOOTH);
+    cameraRig.center.x = lerp(cameraRig.center.x, lookX, SMOOTH);
+    cameraRig.center.y = lerp(cameraRig.center.y, lookY, SMOOTH);
+    cameraRig.center.z = lerp(cameraRig.center.z, lookZ, SMOOTH);
   }
 
-  // Store for use by other systems
-  cameraRig.camPosWorld = createVector(cameraRig.eye.x, cameraRig.eye.y, cameraRig.eye.z);
+  cameraRig.camPosWorld = createVector(cameraRig.eye.x,    cameraRig.eye.y,    cameraRig.eye.z);
   cameraRig.lookAtWorld = createVector(cameraRig.center.x, cameraRig.center.y, cameraRig.center.z);
 
-  // Apply to p5 camera
-  const eyeP5 = worldToP5(cameraRig.camPosWorld);
-  const centerP5 = worldToP5(cameraRig.lookAtWorld);
+  const eye    = worldToP5(cameraRig.camPosWorld);
+  const center = worldToP5(cameraRig.lookAtWorld);
 
-  camera(
-    eyeP5.x, eyeP5.y, eyeP5.z,
-    centerP5.x, centerP5.y, centerP5.z,
-    0, 1, 0
-  );
+  camera(eye.x, eye.y, eye.z, center.x, center.y, center.z, 0, 1, 0);
 };

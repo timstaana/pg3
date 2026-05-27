@@ -1,128 +1,54 @@
-// AnimationSystem.js - Sprite animation for player and NPCs
+// AnimationSystem.js - Sprite frame animation for player and remote players
 
 const AnimationSystem = (world, dt) => {
-  // Animate players (input-based)
+  // Local player: animate based on input
   const players = queryEntities(world, 'Animation', 'Velocity', 'Input', 'Player');
 
   players.forEach(entity => {
-    const { Animation: anim, Velocity: { vel }, Input: input, Player: playerData } = entity;
+    const { Animation: anim, Velocity: { vel }, Input: input, Player: pd } = entity;
 
-    // Calculate horizontal speed (ignoring vertical component)
-    // Optimize: use squared speed for comparison when possible
-    const horizontalSpeedSq = vel.x * vel.x + vel.z * vel.z;
-    const horizontalSpeed = Math.sqrt(horizontalSpeedSq);
-
-    // Set animation frames based on state
     if (input.turn || input.forward) {
-      // Check if transitioning from idle to walking
-      const wasIdle = anim.currentFrame === anim.idleFrame;
-      if (wasIdle) {
-        // Start walking animation immediately
-        anim.currentFrame = anim.walkFrames[0];
-        anim.frameTime = 0;
-      }
-
-      // Use full speed when turning, scaled speed when moving forward
-      let scaledFPS;
-      if (input.turn && horizontalSpeed < 0.1) {
-        // Turning in place - use full speed
-        scaledFPS = anim.framesPerSecond;
-      } else {
-        // Moving - scale animation speed based on actual movement speed
-        const speedRatio = horizontalSpeed / playerData.moveSpeed;
-        scaledFPS = anim.framesPerSecond * Math.max(speedRatio, 0.5); // Min 50% speed
-      }
-
-      // Walking animation
-      anim.frameTime += dt;
-      const frameDuration = 1 / scaledFPS;
-
-      if (anim.frameTime >= frameDuration) {
-        anim.frameTime -= frameDuration;
-
-        // Loop through walk frames
-        const walkIndex = anim.walkFrames.indexOf(anim.currentFrame);
-        if (walkIndex >= 0) {
-          const nextIndex = (walkIndex + 1) % anim.walkFrames.length;
-          anim.currentFrame = anim.walkFrames[nextIndex];
-        } else {
-          anim.currentFrame = anim.walkFrames[0];
-        }
-      }
-    } else {
-      // Idle
-      anim.currentFrame = anim.idleFrame;
-      anim.frameTime = 0;
-    }
-  });
-
-  // Animate NPCs (velocity-based)
-  const npcs = queryEntities(world, 'Animation', 'Velocity', 'NPC');
-
-  npcs.forEach(entity => {
-    const { Animation: anim, Velocity: { vel } } = entity;
-
-    // Calculate horizontal speed
-    const horizontalSpeedSq = vel.x * vel.x + vel.z * vel.z;
-    const horizontalSpeed = Math.sqrt(horizontalSpeedSq);
-    const isMoving = horizontalSpeed > 0.1;
-
-    if (isMoving) {
-      // Check if transitioning from idle to walking
       const wasIdle = anim.currentFrame === anim.idleFrame;
       if (wasIdle) {
         anim.currentFrame = anim.walkFrames[0];
-        anim.frameTime = 0;
+        anim.frameTime    = 0;
       }
 
-      // Walking animation
+      const hSpeed  = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+      const fps     = input.turn && hSpeed < 0.1
+        ? anim.framesPerSecond
+        : anim.framesPerSecond * Math.max(hSpeed / pd.moveSpeed, 0.5);
+
       anim.frameTime += dt;
-      const frameDuration = 1 / anim.framesPerSecond;
-
-      if (anim.frameTime >= frameDuration) {
-        anim.frameTime -= frameDuration;
-
-        // Loop through walk frames
-        const walkIndex = anim.walkFrames.indexOf(anim.currentFrame);
-        if (walkIndex >= 0) {
-          const nextIndex = (walkIndex + 1) % anim.walkFrames.length;
-          anim.currentFrame = anim.walkFrames[nextIndex];
-        } else {
-          anim.currentFrame = anim.walkFrames[0];
-        }
+      if (anim.frameTime >= 1 / fps) {
+        anim.frameTime -= 1 / fps;
+        const idx = anim.walkFrames.indexOf(anim.currentFrame);
+        anim.currentFrame = anim.walkFrames[
+          idx >= 0 ? (idx + 1) % anim.walkFrames.length : 0
+        ];
       }
     } else {
-      // Idle
       anim.currentFrame = anim.idleFrame;
-      anim.frameTime = 0;
+      anim.frameTime    = 0;
     }
   });
 
-  // Animate remote players (like local player: animate on turn or forward/backward)
-  const remotePlayers = queryEntities(world, 'Animation', 'Transform', 'NetworkedPlayer');
+  // Remote players: animate based on movement flags set by NetworkSystem
+  const remote = queryEntities(world, 'Animation', 'NetworkedPlayer');
 
-  remotePlayers.forEach(entity => {
-    const { Animation: anim, NetworkedPlayer: netData } = entity;
+  remote.forEach(entity => {
+    const { Animation: anim, NetworkedPlayer: nd } = entity;
 
-    // Use movement flags set by NetworkSystem (calculated before interpolation)
-    const isMoving = netData.isMoving || false;
-    const isTurning = netData.isTurning || false;
-
-    // Animate if moving OR turning (like local player)
-    if (isMoving || isTurning) {
-      // Accumulate time for frame advancement
+    if (nd.isMoving || nd.isTurning) {
       anim.frameTime += dt;
-      const frameDuration = 1 / anim.framesPerSecond;
-
-      if (anim.frameTime >= frameDuration) {
-        anim.frameTime -= frameDuration;
-        // Cycle through frames 0, 1, 2, 0, 1, 2...
+      const frameDur = 1 / anim.framesPerSecond;
+      if (anim.frameTime >= frameDur) {
+        anim.frameTime   -= frameDur;
         anim.currentFrame = (anim.currentFrame + 1) % anim.totalFrames;
       }
     } else {
-      // Idle - stay on frame 0
       anim.currentFrame = 0;
-      anim.frameTime = 0;
+      anim.frameTime    = 0;
     }
   });
 };
