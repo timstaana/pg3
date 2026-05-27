@@ -141,7 +141,7 @@ const setupUI = (onEmoteFired) => {
     }
     .pg-btn:active { background: rgba(255,255,255,0.18); }
     #pg-skin-btn  { top: 14px; right: 14px; }
-    #pg-emote-btn { bottom: 110px; right: 14px; }
+    #pg-emote-btn { bottom: 14px; left: 50%; transform: translateX(-50%); }
 
     /* Full-screen tap-to-confirm overlay — active only in skin mode */
     #pg-skin-overlay {
@@ -174,7 +174,7 @@ const setupUI = (onEmoteFired) => {
 
     /* Emote picker — column above emote button */
     #pg-emote-picker {
-      position: fixed; right: 14px; bottom: 174px;
+      position: fixed; left: 50%; transform: translateX(-50%); bottom: 78px;
       display: flex; flex-direction: column-reverse; gap: 8px;
       z-index: 200; pointer-events: none;
       opacity: 0; transform: translateY(10px);
