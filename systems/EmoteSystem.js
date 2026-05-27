@@ -18,16 +18,12 @@ const TAU        = Math.PI * 2;
 
 // ── Texture loader (call once in setup) ──────────────────────────────────────
 
-const loadEmoteTextures = async () => {
-  for (const emote of EMOTES) {
-    try {
-      const img = await new Promise((res, rej) => loadImage(emote.src, res, rej));
-      _texCache.set(emote.id, img);
-    } catch (e) {
-      console.warn(`EmoteSystem: failed to load ${emote.src}`, e);
-    }
-  }
-};
+const loadEmoteTextures = () =>
+  Promise.all(EMOTES.map(emote =>
+    new Promise((res, rej) => loadImage(emote.src, res, rej))
+      .then(img => _texCache.set(emote.id, img))
+      .catch(e  => console.warn(`EmoteSystem: failed to load ${emote.src}`, e))
+  ));
 
 // ── Public API ────────────────────────────────────────────────────────────────
 

@@ -184,26 +184,24 @@ const loadModels = async () => {
 // ========== Setup ==========
 
 async function setup() {
-  // Animate the ASCII spinner while assets load
-  const _loadEl  = document.getElementById('pg-loading');
-  const _spinTimer = null;
+  const _loadEl = document.getElementById('pg-loading');
 
   createCanvas(windowWidth, windowHeight, WEBGL);
 
   // Prevent iOS long-press / drag / zoom gestures on canvas
   const canvas = document.querySelector('canvas');
   if (canvas) {
-    canvas.style.touchAction            = 'none';
-    canvas.style.userSelect             = 'none';
-    canvas.style.webkitUserSelect       = 'none';
-    canvas.style.webkitTouchCallout     = 'none';
+    canvas.style.touchAction             = 'none';
+    canvas.style.userSelect              = 'none';
+    canvas.style.webkitUserSelect        = 'none';
+    canvas.style.webkitTouchCallout      = 'none';
     canvas.style.webkitTapHighlightColor = 'transparent';
     canvas.addEventListener('contextmenu', e => e.preventDefault());
     canvas.addEventListener('dragstart',   e => e.preventDefault());
-    canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+    canvas.addEventListener('touchstart',  e => e.preventDefault(), { passive: false });
   }
 
-  // Simple FPS display
+  // FPS display
   fpsDiv = document.createElement('div');
   fpsDiv.style.cssText = [
     'position:fixed', 'top:8px', 'left:8px', 'color:#fff',
@@ -214,56 +212,41 @@ async function setup() {
   ].join(';');
   document.body.appendChild(fpsDiv);
 
-  // Build world
+  // Synchronous world setup
   world          = createWorld();
   collisionWorld = createCollisionWorld();
-
   setupInputListeners();
   buildLevel();
-  await loadModels(); // no-op when LEVEL_MODELS is empty
-
-  // Set up UI overlay (skin + emote buttons)
   setupUI((emoteId) => {
     const ps = queryEntities(world, 'Player', 'Transform');
     if (ps.length > 0) {
       const pos = ps[0].Transform.pos;
-      const wx = pos.x, wy = pos.y + 1.3, wz = pos.z;
-      spawnEmote(wx, wy, wz, emoteId);
-      sendEmote(wx, wy, wz, emoteId);
+      spawnEmote(pos.x, pos.y + 1.3, pos.z, emoteId);
+      sendEmote(pos.x, pos.y + 1.3, pos.z, emoteId);
     }
   });
 
-  // Load emote textures (must run after p5 canvas is created)
-  await loadEmoteTextures();
+  // ── Critical path: load in parallel ──────────────────────────────────────
+  // Default skin + world model + shader all fire at the same time.
+  const loadImg = src => new Promise((res, rej) => loadImage(src, res, rej));
 
-  // Pre-load all skin textures so remote players can display their chosen skin
-  for (const skin of SKINS) {
-    const [front, back] = await Promise.all([
-      new Promise((res, rej) => loadImage(skin.front, res, rej)),
-      new Promise((res, rej) => loadImage(skin.back,  res, rej)),
-    ]);
-    SKIN_TEXTURES[skin.id] = { front, back };
-  }
+  const [defaultFront, defaultBack] = await Promise.all([
+    loadImg(SKINS[0].front),
+    loadImg(SKINS[0].back),
+    loadModels(),
+    (async () => {
+      try   { alphaCutoutShader = await loadShader('shaders/alphaCutout.vert', 'shaders/alphaCutout.frag'); }
+      catch { alphaCutoutShader = null; }
+    })(),
+  ]);
 
-  // Initialise local player textures from the default skin
-  const defaultSkin = SKIN_TEXTURES[SKINS[0].id];
-  PLAYER_FRONT_TEX = defaultSkin.front;
-  PLAYER_BACK_TEX  = defaultSkin.back;
-
-  // Load alpha-cutout shader (for transparent sprite edges)
-  try {
-    alphaCutoutShader = await loadShader(
-      'shaders/alphaCutout.vert',
-      'shaders/alphaCutout.frag'
-    );
-  } catch (err) {
-    console.warn('Shader load failed, sprites will have square edges:', err);
-    alphaCutoutShader = null;
-  }
+  PLAYER_FRONT_TEX = defaultFront;
+  PLAYER_BACK_TEX  = defaultBack;
+  SKIN_TEXTURES[SKINS[0].id] = { front: defaultFront, back: defaultBack };
 
   lastTime = millis() / 1000;
 
-  // Dismiss loading screen
+  // Game is ready — dismiss loading screen
   if (_loadEl) {
     _loadEl.style.opacity = '0';
     setTimeout(() => _loadEl.remove(), 300);
@@ -279,6 +262,15 @@ async function setup() {
       url = port ? `${proto}//${host}:${port}` : `${proto}//${host}`;
     }
     enableMultiplayer(url, MULTIPLAYER.room);
+  }
+
+  // ── Background: non-critical assets (don't delay game start) ─────────────
+  loadEmoteTextures();
+  for (let i = 1; i < SKINS.length; i++) {
+    const skin = SKINS[i];
+    Promise.all([loadImg(skin.front), loadImg(skin.back)])
+      .then(([front, back]) => { SKIN_TEXTURES[skin.id] = { front, back }; })
+      .catch(() => {});
   }
 }
 
