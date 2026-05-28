@@ -32,10 +32,13 @@ const AnimationSystem = (world, dt) => {
         anim._wi          = ((anim._wi ?? 0) + 1) % anim.walkFrames.length;
         anim.currentFrame = anim.walkFrames[anim._wi];
       }
+
+      anim.bobPhase = ((anim.bobPhase || 0) + dt * fps * Math.PI) % (Math.PI * 2);
     } else {
       anim.currentFrame = anim.idleFrame;
       anim.frameTime    = 0;
       anim._wi          = 0;
+      anim.bobPhase     = 0;
     }
   }
 
@@ -53,9 +56,11 @@ const AnimationSystem = (world, dt) => {
         anim.frameTime   -= frameDur;
         anim.currentFrame = anim.currentFrame === 1 ? 2 : 1;
       }
+      anim.bobPhase = ((anim.bobPhase || 0) + dt * anim.framesPerSecond * Math.PI) % (Math.PI * 2);
     } else {
       anim.currentFrame = 0;
       anim.frameTime    = 0;
+      anim.bobPhase     = 0;
     }
   }
 };

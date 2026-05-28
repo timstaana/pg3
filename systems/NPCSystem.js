@@ -24,13 +24,20 @@ const updateNPCStates = (states) => {
 
 const NPCSystem = (world, _collisionWorld, dt) => {
   for (const entity of queryEntities(world, 'NPC', 'Transform', 'Animation')) {
-    const { NPC: npc, Transform: tf } = entity;
+    const { NPC: npc, Animation: anim, Transform: tf } = entity;
     const f = Math.min(1, 12 * dt);
     tf.pos.lerp(npc.targetPos, f);
     let yd = npc.targetYaw - tf.rot.y;
     while (yd >  180) yd -= 360;
     while (yd < -180) yd += 360;
     tf.rot.y += yd * f;
+
+    const moving = anim.currentFrame !== 0;
+    if (moving) {
+      anim.bobPhase = ((anim.bobPhase || 0) + dt * anim.framesPerSecond * Math.PI) % (Math.PI * 2);
+    } else {
+      anim.bobPhase = 0;
+    }
   }
 };
 

@@ -115,9 +115,10 @@ const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex, fadeAl
   const halfW  = 0.5;
   const height = 1.5;
   const bottom = -radius;
+  const bobY   = Math.abs(Math.sin(anim.bobPhase || 0)) * 0.06;
 
   push();
-  translate(pos.x, pos.y, pos.z);
+  translate(pos.x, pos.y + bobY, pos.z);
   rotateY(yawRad);
   noLights();
   noStroke();
