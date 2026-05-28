@@ -3,7 +3,7 @@
 const PLAYER_FADE_SPEED  = 2.5;  // fade-in speed (0→1)
 const PLAYER_FADE_OUT    = 3.0;  // fade-out speed on disconnect
 const STALE_START_S      = 2.0;  // seconds before stale fade begins
-const STALE_FLOOR        = 0.35; // minimum alpha while stale (not yet disconnected)
+const STALE_FLOOR        = 0.5;  // minimum alpha while stale (not yet disconnected)
 const SEND_INTERVAL_MS   = 50;   // 20 Hz outbound
 
 let net = {
@@ -11,7 +11,6 @@ let net = {
   connected:     false,
   playerId:      null,
   serverUrl:     null,
-  room:          'default',
   remotePlayers: new Map(), // id → entity  (active players)
   lastSent:      null,
   lastSentTime:  0,
@@ -31,7 +30,7 @@ const _connect = () => {
   if (prev) prev.close();
 
   if (!net.playerId) {
-    net.playerId = `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+    net.playerId = `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
   }
 
   let ws;
@@ -43,10 +42,11 @@ const _connect = () => {
     if (!s) { ws.close(); return; }
     net.connected        = true;
     net.reconnectAttempt = 0;
-    ws.send(JSON.stringify({ type: 'join', id: net.playerId, room: net.room, ...s }));
+    ws.send(JSON.stringify({ type: 'join', id: net.playerId, ...s }));
+    console.log('[net] joined as', net.playerId);
   };
 
-  ws.onmessage = (e) => { try { _handle(JSON.parse(e.data)); } catch {} };
+  ws.onmessage = (e) => { try { _handle(JSON.parse(e.data)); } catch (err) { console.error('[net] msg err:', err); } };
 
   ws.onclose = () => {
     if (net.ws !== ws) return; // deliberate close or stale
@@ -80,7 +80,9 @@ const _handle = (msg) => {
   switch (msg.type) {
 
     case 'welcome': {
-      Object.entries(msg.players).forEach(([id, s]) => _createPlayer(id, s));
+      const ids = Object.keys(msg.players);
+      console.log('[net] welcome:', ids.length, 'others:', ids);
+      ids.forEach(id => _createPlayer(id, msg.players[id]));
       const n = net.remotePlayers.size;
       if (n > 0) showToast(n === 1 ? '1 other player in the room' : `${n} other players in the room`);
       break;
@@ -100,6 +102,7 @@ const _handle = (msg) => {
     }
 
     case 'join': {
+      console.log('[net] join:', msg.id);
       // If this player was mid-fade-out (quick reconnect), cancel the fade.
       if (_dying.has(msg.id)) {
         removeEntity(world, _dying.get(msg.id));
@@ -111,6 +114,7 @@ const _handle = (msg) => {
     }
 
     case 'leave': {
+      console.log('[net] leave:', msg.id);
       _startFadeOut(msg.id);
       showToast('A player left');
       break;
@@ -125,7 +129,8 @@ const _handle = (msg) => {
 // ── Remote player lifecycle ───────────────────────────────────────────────
 
 const _createPlayer = (id, s) => {
-  if (net.remotePlayers.has(id) || !s) return;
+  if (!s) return;
+  if (net.remotePlayers.has(id)) { console.log('[net] _createPlayer: already exists', id); return; }
   const entity = createEntity(world, {
     Transform: {
       pos:   createVector(+s.x, +s.y, +s.z),
@@ -246,9 +251,8 @@ const NetworkSystem = (world, dt) => {
 
 // ── Public API ────────────────────────────────────────────────────────────
 
-const enableMultiplayer = (serverUrl, room) => {
+const enableMultiplayer = (serverUrl) => {
   net.serverUrl = serverUrl;
-  net.room      = room;
   _connect();
 };
 

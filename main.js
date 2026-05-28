@@ -28,7 +28,6 @@ const CAMERA_CONFIG = {
 const MULTIPLAYER = {
   enabled:   true,
   serverUrl: null,
-  room:      'basic'
 };
 
 const SPAWN_POS = [0, 0.1, 0];
@@ -266,7 +265,7 @@ async function setup() {
       const port  = window.location.port;
       url = port ? `${proto}//${host}:${port}` : `${proto}//${host}`;
     }
-    enableMultiplayer(url, MULTIPLAYER.room);
+    enableMultiplayer(url);
   }
 
   // ── Background: non-critical assets (don't delay game start) ─────────────
