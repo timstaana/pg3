@@ -46,11 +46,12 @@ const AnimationSystem = (world, dt) => {
     const { Animation: anim, NetworkedPlayer: nd } = entity;
 
     if (nd.isMoving || nd.isTurning) {
+      if (anim.currentFrame === 0) { anim.currentFrame = 1; anim.frameTime = 0; }
       anim.frameTime += dt;
       const frameDur  = 1 / anim.framesPerSecond;
       if (anim.frameTime >= frameDur) {
         anim.frameTime   -= frameDur;
-        anim.currentFrame = (anim.currentFrame + 1) % anim.totalFrames;
+        anim.currentFrame = anim.currentFrame === 1 ? 2 : 1;
       }
     } else {
       anim.currentFrame = 0;

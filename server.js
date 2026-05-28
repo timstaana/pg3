@@ -372,7 +372,8 @@ const _npcTick = (dt) => {
     if (hSpd > 0.15) {
       const fps = 6 * Math.max(hSpd / SRV_NPC_WALK_SPEED, 0.4);
       npc.frameTime += dt;
-      if (npc.frameTime >= 1/fps) { npc.frameTime -= 1/fps; npc.frame = (npc.frame+1)%3; }
+      if (npc.frame === 0) npc.frame = 1;
+      if (npc.frameTime >= 1/fps) { npc.frameTime -= 1/fps; npc.frame = npc.frame === 1 ? 2 : 1; }
     } else { npc.frame = 0; npc.frameTime = 0; }
   }
 };
