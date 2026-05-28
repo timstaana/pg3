@@ -1,53 +1,54 @@
-// server.js - Lightweight multiplayer server
-// Non-authoritative state relay with room management
-
+// server.js
 const express = require('express');
 const { WebSocketServer } = require('ws');
 const os = require('os');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static files
 app.use(express.static('.'));
+app.get('/health', (_req, res) => res.status(200).send('OK'));
 
-// Health check
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
-});
-
-// Get local IP for LAN
 function getLocalIP() {
-  const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        return iface.address;
-      }
+  for (const ifaces of Object.values(os.networkInterfaces())) {
+    for (const i of ifaces) {
+      if (i.family === 'IPv4' && !i.internal) return i.address;
     }
   }
   return 'localhost';
 }
 
 const server = app.listen(PORT, '0.0.0.0', () => {
-  const localIP = getLocalIP();
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`   Local:   http://localhost:${PORT}`);
-  console.log(`   Network: http://${localIP}:${PORT}`);
-  console.log(`   WebSocket: ws://${localIP}:${PORT}`);
+  const ip = getLocalIP();
+  console.log(`Server on :${PORT}  ws://${ip}:${PORT}`);
 });
 
-// WebSocket server
 const wss = new WebSocketServer({ server, perMessageDeflate: false });
 
-// Rooms: Map<roomName, Map<playerId, {ws, state}>>
+// rooms: Map<roomName, Map<playerId, { ws, state }>>
 const rooms = new Map();
 
+// ── Server tick: broadcast authoritative world state every 50 ms ──────────
+setInterval(() => {
+  rooms.forEach(players => {
+    if (players.size < 2) return; // nothing useful to broadcast alone
+
+    const snapshot = {};
+    players.forEach((c, id) => { if (c.state) snapshot[id] = c.state; });
+    if (!Object.keys(snapshot).length) return;
+
+    const msg = JSON.stringify({ type: 'update', players: snapshot });
+    players.forEach(c => {
+      if (c.ws.readyState === 1) c.ws.send(msg);
+    });
+  });
+}, 50);
+
+// ── Connections ───────────────────────────────────────────────────────────
 wss.on('connection', (ws) => {
   let playerId = null;
-  let room = null;
+  let room     = null;
 
-  // Native ping/pong for keepalive
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
 
@@ -56,123 +57,86 @@ wss.on('connection', (ws) => {
       const msg = JSON.parse(data);
 
       switch (msg.type) {
-        case 'join':
-          playerId = msg.playerId;
-          room = msg.room || 'default';
 
-          // Create room if needed
-          if (!rooms.has(room)) {
-            rooms.set(room, new Map());
-          }
+        case 'join': {
+          playerId = msg.id;
+          room     = msg.room || 'default';
 
-          // Add player to room
-          rooms.get(room).set(playerId, { ws, state: msg.state });
-          console.log(`${playerId.slice(-4)} joined ${room} (${rooms.get(room).size} players)`);
+          if (!rooms.has(room)) rooms.set(room, new Map());
+          const players = rooms.get(room);
 
-          // Send existing players
-          const players = [];
-          rooms.get(room).forEach((client, id) => {
-            if (id !== playerId && client.state) {
-              players.push({ playerId: id, state: client.state });
-            }
-          });
-          ws.send(JSON.stringify({ type: 'room_state', players }));
+          const state = { x: msg.x, y: msg.y, z: msg.z, yaw: msg.yaw, skin: msg.skin };
 
-          // Notify others
-          broadcast(room, { type: 'player_joined', playerId, state: msg.state }, playerId);
+          // Snapshot of existing players for the welcome message
+          const welcome = {};
+          players.forEach((c, id) => { if (id !== playerId && c.state) welcome[id] = c.state; });
+
+          // Register player (overwrites stale entry from quick-reconnect)
+          players.set(playerId, { ws, state });
+
+          ws.send(JSON.stringify({ type: 'welcome', you: playerId, players: welcome }));
+          broadcast(room, { type: 'join', id: playerId, ...state }, playerId);
+
+          console.log(`${playerId.slice(-6)} joined ${room} (${players.size})`);
           break;
+        }
 
-        case 'state':
+        case 'mv': {
+          if (!room || !playerId) break;
+          const c = rooms.get(room)?.get(playerId);
+          if (c) c.state = { x: msg.x, y: msg.y, z: msg.z, yaw: msg.yaw, skin: msg.skin };
+          break;
+        }
+
+        case 'emote': {
           if (room && playerId) {
-            // Update stored state
-            const client = rooms.get(room)?.get(playerId);
-            if (client) {
-              client.state = msg.state;
-            }
-
-            // Broadcast to others in room
-            broadcast(room, { type: 'player_state', playerId, state: msg.state }, playerId);
+            broadcast(room, { type: 'emote', wx: msg.wx, wy: msg.wy, wz: msg.wz, emoteId: msg.emoteId }, playerId);
           }
           break;
-
-        case 'emote':
-          if (room && playerId) {
-            broadcast(room, {
-              type:    'emote',
-              playerId,
-              wx:      msg.wx,
-              wy:      msg.wy,
-              wz:      msg.wz,
-              emoteId: msg.emoteId,
-            }, playerId);
-          }
-          break;
+        }
       }
     } catch (err) {
-      console.error('Message error:', err);
+      console.error('msg error:', err);
     }
   });
 
   ws.on('close', () => {
-    if (room && playerId) {
-      // Guard against stale close: if the player reconnected quickly, the room
-      // already holds their new ws — don't delete it or broadcast a false leave.
-      const current = rooms.get(room)?.get(playerId);
-      if (!current || current.ws !== ws) return;
+    if (!room || !playerId) return;
+    // Only act if this ws is still the current one (guards against quick-reconnect race)
+    const current = rooms.get(room)?.get(playerId);
+    if (!current || current.ws !== ws) return;
 
-      rooms.get(room).delete(playerId);
-      broadcast(room, { type: 'player_left', playerId });
+    rooms.get(room).delete(playerId);
+    broadcast(room, { type: 'leave', id: playerId });
 
-      const remaining = rooms.get(room)?.size || 0;
-      console.log(`${playerId.slice(-4)} left ${room} (${remaining} players)`);
-
-      if (remaining === 0) rooms.delete(room);
-    }
+    const remaining = rooms.get(room)?.size ?? 0;
+    console.log(`${playerId.slice(-6)} left ${room} (${remaining})`);
+    if (remaining === 0) rooms.delete(room);
   });
 
-  ws.on('error', (err) => {
-    console.error('WebSocket error:', err);
-  });
+  ws.on('error', () => {});
 });
 
-// Heartbeat: ping every 30s, terminate stale connections
+// Heartbeat: terminate stale connections every 30 s
 const heartbeat = setInterval(() => {
-  wss.clients.forEach((ws) => {
-    if (ws.isAlive === false) {
-      console.log('Terminating stale connection');
-      return ws.terminate();
-    }
+  wss.clients.forEach(ws => {
+    if (!ws.isAlive) return ws.terminate();
     ws.isAlive = false;
     ws.ping();
   });
 }, 30000);
 
-wss.on('close', () => {
-  clearInterval(heartbeat);
-});
+wss.on('close', () => clearInterval(heartbeat));
 
-// Broadcast to room
 function broadcast(roomName, message, excludeId = null) {
-  const roomClients = rooms.get(roomName);
-  if (!roomClients) return;
-
+  const players = rooms.get(roomName);
+  if (!players) return;
   const data = JSON.stringify(message);
-  roomClients.forEach((client, id) => {
-    if (id !== excludeId && client.ws.readyState === 1) {
-      try {
-        client.ws.send(data);
-      } catch (err) {
-        console.error(`Broadcast error to ${id}:`, err);
-      }
+  players.forEach((c, id) => {
+    if (id !== excludeId && c.ws.readyState === 1) {
+      try { c.ws.send(data); } catch {}
     }
   });
 }
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('Shutting down...');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-});
+process.on('SIGTERM', () => server.close(() => process.exit(0)));

@@ -1,185 +1,105 @@
-// NetworkSystem.js - Simplified multiplayer networking
-// Fast, non-authoritative state sync with auto-reconnect
+// NetworkSystem.js
 
-let networkState = {
-  ws: null,
-  connected: false,
-  playerId: null,
-  room: 'default',
-  serverUrl: null,
-  remotePlayers: new Map(), // playerId -> entity
+const PLAYER_FADE_SPEED = 2.5;
+const SEND_INTERVAL_MS  = 50; // 20 Hz
 
-  // State sync
-  lastStateSent: null,
-  stateSendInterval: 50, // 20 updates/sec
-  lastSendTime: 0,
-
-  // Reconnection
-  reconnecting: false,
+let net = {
+  ws:            null,
+  connected:     false,
+  playerId:      null,
+  serverUrl:     null,
+  room:          'default',
+  remotePlayers: new Map(), // id → entity
+  lastSent:      null,
+  lastSentTime:  0,
   reconnectAttempt: 0,
-  maxReconnectAttempts: 10,
-  reconnectTimeout: null
+  reconnectTimer:   null,
 };
 
-// ========== Connection ==========
+// ── Connection ────────────────────────────────────────────────────────────
 
-const connect = (serverUrl, room = 'default') => {
-  if (networkState.ws && networkState.connected) return;
+const _connect = () => {
+  // Null out first so onclose knows this is intentional if we call close()
+  const prev = net.ws;
+  net.ws = null;
+  if (prev) prev.close();
 
-  // Clean up existing connection
-  if (networkState.ws) {
-    networkState.ws.close();
-    networkState.ws = null;
+  if (!net.playerId) {
+    net.playerId = `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
   }
 
-  // Generate player ID once
-  if (!networkState.playerId) {
-    networkState.playerId = `player_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-  }
+  let ws;
+  try { ws = new WebSocket(net.serverUrl); } catch { return; }
+  net.ws = ws;
 
-  networkState.serverUrl = serverUrl;
-  networkState.room = room;
+  ws.onopen = () => {
+    const s = _localState();
+    if (!s) { ws.close(); return; }
+    net.connected  = true;
+    net.reconnectAttempt = 0;
+    ws.send(JSON.stringify({ type: 'join', id: net.playerId, room: net.room, ...s }));
+  };
 
-  console.log(`Connecting to ${serverUrl}...`);
+  ws.onmessage = (e) => {
+    try { _handle(JSON.parse(e.data)); } catch {}
+  };
 
-  try {
-    networkState.ws = new WebSocket(serverUrl);
+  ws.onclose = () => {
+    if (net.ws !== ws) return; // we already moved on
+    net.ws        = null;
+    net.connected = false;
+    _clearRemote();
+    showToast('Disconnected');
+    _scheduleReconnect();
+  };
 
-    networkState.ws.onopen = () => {
-      console.log('✓ Connected to server');
-      networkState.connected = true;
-      networkState.reconnecting = false;
-      networkState.reconnectAttempt = 0;
-      showToast('Connected!');
-
-      // Join room
-      const state = getLocalState();
-      if (state) {
-        send({ type: 'join', playerId: networkState.playerId, room: networkState.room, state });
-      }
-    };
-
-    networkState.ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        handleMessage(msg);
-      } catch (err) {
-        console.error('Parse error:', err);
-      }
-    };
-
-    networkState.ws.onerror = (err) => {
-      console.error('WebSocket error:', err);
-    };
-
-    networkState.ws.onclose = (event) => {
-      console.log(`Disconnected (code: ${event.code})`);
-      networkState.connected = false;
-      networkState.ws = null;
-      showToast('Disconnected');
-
-      // Clean up old remote players before reconnecting
-      networkState.remotePlayers.forEach(entity => {
-        if (entity._markedForRemoval !== true) {
-          removeEntity(world, entity);
-        }
-      });
-      networkState.remotePlayers.clear();
-
-      // Auto-reconnect
-      if (!networkState.reconnecting) {
-        attemptReconnect();
-      }
-    };
-  } catch (err) {
-    console.error('Connection failed:', err);
-  }
+  ws.onerror = () => {}; // onclose will fire
 };
 
-const attemptReconnect = () => {
-  if (networkState.reconnecting) return;
-
-  networkState.reconnectAttempt++;
-  if (networkState.reconnectAttempt > networkState.maxReconnectAttempts) {
-    console.error('Max reconnect attempts reached');
-    cleanup();
-    return;
-  }
-
-  networkState.reconnecting = true;
-  const delay = Math.min(1000 * Math.pow(1.5, networkState.reconnectAttempt - 1), 30000);
-
-  console.log(`Reconnecting in ${(delay / 1000).toFixed(1)}s (${networkState.reconnectAttempt}/${networkState.maxReconnectAttempts})`);
-  showToast('Reconnecting...');
-
-  networkState.reconnectTimeout = setTimeout(() => {
-    networkState.reconnecting = false;
-    if (networkState.serverUrl) {
-      connect(networkState.serverUrl, networkState.room);
-    }
-  }, delay);
+const _scheduleReconnect = () => {
+  if (net.reconnectAttempt >= 10) return;
+  net.reconnectAttempt++;
+  const delay = Math.min(1000 * Math.pow(1.5, net.reconnectAttempt - 1), 30000);
+  net.reconnectTimer = setTimeout(_connect, delay);
 };
 
-const disconnect = () => {
-  if (networkState.reconnectTimeout) {
-    clearTimeout(networkState.reconnectTimeout);
-  }
-  if (networkState.ws) {
-    networkState.ws.close();
-    networkState.ws = null;
-  }
-  cleanup();
+const _clearRemote = () => {
+  net.remotePlayers.forEach(e => removeEntity(world, e));
+  net.remotePlayers.clear();
 };
 
-const cleanup = () => {
-  networkState.remotePlayers.forEach(entity => {
-    if (entity._markedForRemoval !== true) {
-      removeEntity(world, entity);
-    }
-  });
-  networkState.remotePlayers.clear();
-  networkState.connected = false;
-};
+// ── Message handling ──────────────────────────────────────────────────────
 
-// ========== Messaging ==========
-
-const send = (msg) => {
-  if (networkState.ws && networkState.ws.readyState === 1) {
-    try {
-      networkState.ws.send(JSON.stringify(msg));
-    } catch (err) {
-      console.error('Send error:', err);
-    }
-  }
-};
-
-const handleMessage = (msg) => {
+const _handle = (msg) => {
   switch (msg.type) {
-    case 'room_state': {
-      msg.players.forEach(p => createRemotePlayer(p.playerId, p.state));
-      console.log(`Joined room with ${msg.players.length} player(s)`);
-      // Delay toast so player_joined events that arrive right after are counted
-      setTimeout(() => {
-        const n = networkState.remotePlayers.size;
-        if (n > 0) showToast(n === 1 ? '1 other player in the room' : `${n} other players in the room`);
-      }, 500);
+
+    case 'welcome': {
+      // Initial snapshot of the room when we join
+      Object.entries(msg.players).forEach(([id, s]) => _createPlayer(id, s));
+      const n = net.remotePlayers.size;
+      if (n > 0) showToast(n === 1 ? '1 other player in the room' : `${n} other players in the room`);
       break;
     }
 
-    case 'player_joined':
-      createRemotePlayer(msg.playerId, msg.state);
+    case 'update': {
+      // Server-authoritative world tick — update positions; silently create any
+      // players we somehow missed a 'join' for (safety net, no toast).
+      Object.entries(msg.players).forEach(([id, s]) => {
+        if (id === net.playerId) return;
+        if (net.remotePlayers.has(id)) _updatePlayer(id, s);
+        else                           _createPlayer(id, s);
+      });
+      break;
+    }
+
+    case 'join':
+      _createPlayer(msg.id, msg);
       showToast('A player joined');
-      console.log(`Player ${msg.playerId.slice(-4)} joined`);
       break;
 
-    case 'player_left':
-      removeRemotePlayer(msg.playerId);
+    case 'leave':
+      _removePlayer(msg.id);
       showToast('A player left');
-      console.log(`Player ${msg.playerId.slice(-4)} left`);
-      break;
-
-    case 'player_state':
-      updateRemotePlayer(msg.playerId, msg.state);
       break;
 
     case 'emote':
@@ -188,160 +108,135 @@ const handleMessage = (msg) => {
   }
 };
 
-// ========== State Sync ==========
+// ── Remote player lifecycle ───────────────────────────────────────────────
 
-const getLocalState = () => {
-  const players = queryEntities(world, 'Player', 'Transform');
-  if (players.length === 0) return null;
+const _createPlayer = (id, s) => {
+  if (net.remotePlayers.has(id) || !s) return;
+  const entity = createEntity(world, {
+    Transform: {
+      pos:   createVector(+s.x, +s.y, +s.z),
+      rot:   createVector(0, +(s.yaw || 0), 0),
+      scale: createVector(1, 1, 1),
+    },
+    Animation: {
+      currentFrame: 0, frameTime: 0, framesPerSecond: 6, totalFrames: 3,
+    },
+    NetworkedPlayer: {
+      playerId:  id,
+      targetPos: createVector(+s.x, +s.y, +s.z),
+      targetYaw: +(s.yaw || 0),
+      lerpSpeed: 10,
+      isMoving:  false,
+      isTurning: false,
+      radius:    PLAYER_RADIUS,
+      skinId:    s.skin || SKINS[0].id,
+      fadeAlpha: 0,
+    },
+  });
+  net.remotePlayers.set(id, entity);
+};
 
-  const player = players[0];
-  const pos = player.Transform.pos;
-  const yaw = player.Transform.rot.y;
+const _removePlayer = (id) => {
+  const e = net.remotePlayers.get(id);
+  if (!e) return;
+  removeEntity(world, e);
+  net.remotePlayers.delete(id);
+};
 
+const _updatePlayer = (id, s) => {
+  const e = net.remotePlayers.get(id);
+  if (!e) return;
+  const n = e.NetworkedPlayer;
+  n.targetPos.set(+s.x, +s.y, +s.z);
+  n.targetYaw = +s.yaw;
+  if (s.skin) n.skinId = s.skin;
+};
+
+// ── Interpolation (runs every frame) ─────────────────────────────────────
+
+const _interpolate = (dt) => {
+  net.remotePlayers.forEach(e => {
+    const n  = e.NetworkedPlayer;
+    const tf = e.Transform;
+
+    n.fadeAlpha = Math.min(1, n.fadeAlpha + dt * PLAYER_FADE_SPEED);
+
+    const dx = n.targetPos.x - tf.pos.x;
+    const dz = n.targetPos.z - tf.pos.z;
+    n.isMoving = dx * dx + dz * dz > 0.0025;
+
+    let yd = n.targetYaw - tf.rot.y;
+    if (yd >  180) yd -= 360;
+    if (yd < -180) yd += 360;
+    n.isTurning = Math.abs(yd) > 1;
+
+    const f = Math.min(1, n.lerpSpeed * dt);
+    tf.pos.lerp(n.targetPos, f);
+    tf.rot.y += yd * f;
+  });
+};
+
+// ── Outbound state ────────────────────────────────────────────────────────
+
+const _localState = () => {
+  const ps = queryEntities(world, 'Player', 'Transform');
+  if (!ps.length) return null;
+  const { pos, rot } = ps[0].Transform;
   return {
-    pos:  { x: pos.x.toFixed(2), y: pos.y.toFixed(2), z: pos.z.toFixed(2) },
-    yaw:  yaw.toFixed(1),
-    skin: SKINS[uiState.selectedSkin].id   // broadcast chosen skin to others
+    x:    +pos.x.toFixed(2),
+    y:    +pos.y.toFixed(2),
+    z:    +pos.z.toFixed(2),
+    yaw:  +rot.y.toFixed(1),
+    skin: SKINS[uiState.selectedSkin].id,
   };
 };
 
-const sendState = () => {
-  if (!networkState.connected) return;
-
+const _sendState = () => {
+  if (!net.connected || !net.ws) return;
   const now = Date.now();
-  if (now - networkState.lastSendTime < networkState.stateSendInterval) return;
+  if (now - net.lastSentTime < SEND_INTERVAL_MS) return;
 
-  const state = getLocalState();
-  if (!state) return;
+  const s = _localState();
+  if (!s) return;
 
-  // Delta compression - only send if changed
-  const lastState = networkState.lastStateSent;
-  const changed = !lastState ||
-    state.pos.x !== lastState.pos.x ||
-    state.pos.y !== lastState.pos.y ||
-    state.pos.z !== lastState.pos.z ||
-    state.yaw   !== lastState.yaw   ||
-    state.skin  !== lastState.skin;
+  const p = net.lastSent;
+  if (p && s.x === p.x && s.y === p.y && s.z === p.z && s.yaw === p.yaw && s.skin === p.skin) return;
 
-  if (changed) {
-    send({ type: 'state', state });
-    networkState.lastStateSent = state;
-    networkState.lastSendTime = now;
-  }
+  net.ws.send(JSON.stringify({ type: 'mv', ...s }));
+  net.lastSent     = s;
+  net.lastSentTime = now;
 };
 
-// ========== Remote Players ==========
-
-const PLAYER_FADE_SPEED = 2.5; // full fade in/out in ~0.4 s
-
-const createRemotePlayer = (playerId, state) => {
-  if (networkState.remotePlayers.has(playerId)) return;
-  if (!state || !state.pos) return;
-
-  const entity = createEntity(world, {
-    Transform: {
-      pos: createVector(parseFloat(state.pos.x), parseFloat(state.pos.y), parseFloat(state.pos.z)),
-      rot: createVector(0, parseFloat(state.yaw) || 0, 0),
-      scale: createVector(1, 1, 1)
-    },
-    Animation: {
-      currentFrame: 0,
-      frameTime: 0,
-      framesPerSecond: 6,
-      totalFrames: 3
-    },
-    NetworkedPlayer: {
-      playerId,
-      targetPos: createVector(parseFloat(state.pos.x), parseFloat(state.pos.y), parseFloat(state.pos.z)),
-      targetYaw: parseFloat(state.yaw) || 0,
-      lerpSpeed: 10.0,
-      lastUpdate: Date.now(),
-      radius: PLAYER_RADIUS,
-      isMoving: false,
-      isTurning: false,
-      skinId: state.skin || SKINS[0].id,  // use their skin, fall back to default
-      fadeAlpha: 0
-    }
-  });
-
-  networkState.remotePlayers.set(playerId, entity);
-};
-
-const removeRemotePlayer = (playerId) => {
-  const entity = networkState.remotePlayers.get(playerId);
-  if (entity) {
-    removeEntity(world, entity);
-    networkState.remotePlayers.delete(playerId);
-  }
-};
-
-const updateRemotePlayer = (playerId, state) => {
-  const entity = networkState.remotePlayers.get(playerId);
-  if (!entity || !entity.NetworkedPlayer) return;
-
-  const net = entity.NetworkedPlayer;
-
-  if (state.pos) {
-    net.targetPos.set(parseFloat(state.pos.x), parseFloat(state.pos.y), parseFloat(state.pos.z));
-  }
-  if (state.yaw !== undefined) {
-    net.targetYaw = parseFloat(state.yaw);
-  }
-  if (state.skin) {
-    net.skinId = state.skin;
-  }
-
-  net.lastUpdate = Date.now();
-};
-
-const interpolate = (dt) => {
-  networkState.remotePlayers.forEach(entity => {
-    const net = entity.NetworkedPlayer;
-    const transform = entity.Transform;
-
-    // Fade in on connect
-    net.fadeAlpha = Math.min(1, net.fadeAlpha + dt * PLAYER_FADE_SPEED);
-
-    // Check horizontal movement for animation (ignore Y/jumping)
-    const dx = net.targetPos.x - transform.pos.x;
-    const dz = net.targetPos.z - transform.pos.z;
-    net.isMoving = Math.sqrt(dx * dx + dz * dz) > 0.05;
-
-    // Check rotation for animation
-    let yawDiff = net.targetYaw - transform.rot.y;
-    if (yawDiff > 180) yawDiff -= 360;
-    else if (yawDiff < -180) yawDiff += 360;
-    net.isTurning = Math.abs(yawDiff) > 1;
-
-    const factor = Math.min(1, net.lerpSpeed * dt);
-    transform.pos.lerp(net.targetPos, factor);
-    transform.rot.y += yawDiff * factor;
-  });
-};
-
-// ========== Main System ==========
+// ── Main system ───────────────────────────────────────────────────────────
 
 const NetworkSystem = (world, dt) => {
-  if (!networkState.connected) return;
-
-  sendState();
-  interpolate(dt);
+  if (!net.connected) return;
+  _sendState();
+  _interpolate(dt);
 };
 
-// ========== Public API ==========
+// ── Public API ────────────────────────────────────────────────────────────
 
 const enableMultiplayer = (serverUrl, room) => {
-  connect(serverUrl, room);
+  net.serverUrl = serverUrl;
+  net.room      = room;
+  _connect();
 };
 
 const disableMultiplayer = () => {
-  disconnect();
+  clearTimeout(net.reconnectTimer);
+  const ws = net.ws;
+  net.ws = null; // nullify before close so onclose is a no-op
+  if (ws) ws.close();
+  net.connected = false;
+  _clearRemote();
 };
 
-const getNetworkState = () => networkState;
-const isMultiplayerEnabled = () => networkState.connected;
-
-// Broadcast an emote to everyone else in the room
 const sendEmote = (wx, wy, wz, emoteId) => {
-  send({ type: 'emote', wx, wy, wz, emoteId });
+  if (net.connected && net.ws) {
+    net.ws.send(JSON.stringify({ type: 'emote', wx, wy, wz, emoteId }));
+  }
 };
+
+const getNetworkState    = () => net;
+const isMultiplayerEnabled = () => net.connected;
