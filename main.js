@@ -64,6 +64,8 @@ let lastTime = 0;
 
 let PLAYER_FRONT_TEX;
 let PLAYER_BACK_TEX;
+let NPC_FRONT_TEX;
+let NPC_BACK_TEX;
 
 // All skin textures keyed by skin id — populated in setup(), used by RenderSystem
 // for remote players so each player shows their own chosen skin.
@@ -234,9 +236,11 @@ async function setup() {
   // Default skin + world model + shader all fire at the same time.
   const loadImg = src => new Promise((res, rej) => loadImage(src, res, rej));
 
-  const [defaultFront, defaultBack] = await Promise.all([
+  const [defaultFront, defaultBack, npcFront, npcBack] = await Promise.all([
     loadImg(SKINS[0].front),
     loadImg(SKINS[0].back),
+    loadImg('assets/npc_01_front.png'),
+    loadImg('assets/npc_01_back.png'),
     loadModels(),
     (async () => {
       try   { alphaCutoutShader = await loadShader('shaders/alphaCutout.vert', 'shaders/alphaCutout.frag'); }
@@ -247,7 +251,10 @@ async function setup() {
   PLAYER_FRONT_TEX = defaultFront;
   PLAYER_BACK_TEX  = defaultBack;
   SKIN_TEXTURES[SKINS[0].id] = { front: defaultFront, back: defaultBack };
+  NPC_FRONT_TEX = npcFront;
+  NPC_BACK_TEX  = npcBack;
 
+  spawnNPCs(world);
   lastTime = millis() / 1000;
 
   // Game is ready — dismiss loading screen
@@ -296,6 +303,7 @@ function draw() {
   RespawnSystem(world, dt);
   NetworkSystem(world, dt);
   AnimationSystem(world, dt);
+  NPCSystem(world, collisionWorld, dt);
   CameraSystem(world, collisionWorld, dt);
   RenderSystem(world, collisionWorld, dt);
   EmoteSystem(dt);

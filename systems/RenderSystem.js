@@ -172,6 +172,7 @@ const RenderSystem = (world, collisionWorld, dt) => {
 
   queryEntities(world, 'Player',         'Transform').forEach(e => renderShadow(e, collisionWorld));
   queryEntities(world, 'NetworkedPlayer','Transform').forEach(e => renderShadow(e, collisionWorld));
+  queryEntities(world, 'NPC',            'Transform').forEach(e => renderShadow(e, collisionWorld));
 
   // Activate shader once for all sprites — avoids N GPU state flushes per frame
   _spriteBatchActive = !!alphaCutoutShader;
@@ -188,6 +189,11 @@ const RenderSystem = (world, collisionWorld, dt) => {
       ? SKIN_TEXTURES[nd.skinId]
       : { front: PLAYER_FRONT_TEX, back: PLAYER_BACK_TEX };
     renderCharacterSprite(pos, rot, anim, nd.radius, skinTexs.front, skinTexs.back, nd.fadeAlpha ?? 1.0);
+  });
+
+  queryEntities(world, 'NPC', 'Transform', 'Animation').forEach(entity => {
+    const { Transform: { pos, rot }, Animation: anim, NPC: npc } = entity;
+    renderCharacterSprite(pos, rot, anim, npc.radius, NPC_FRONT_TEX, NPC_BACK_TEX);
   });
 
   if (alphaCutoutShader) resetShader();

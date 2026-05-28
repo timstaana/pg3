@@ -28,6 +28,16 @@ const wss = new WebSocketServer({ server, perMessageDeflate: false });
 // Single global player pool — no rooms, everyone shares one world.
 const players = new Map(); // id → { ws, state }
 
+let npcHostId = null; // playerId of the client running NPC simulation
+
+const _assignNPCHost = () => {
+  npcHostId = null;
+  for (const [id, c] of players) {
+    if (c.ws.readyState === 1) { npcHostId = id; break; }
+  }
+  broadcast({ type: 'npc_host', id: npcHostId });
+};
+
 // ── Server tick: broadcast authoritative world state every 50 ms ──────────
 setInterval(() => {
   if (players.size < 2) return;
@@ -54,15 +64,19 @@ wss.on('connection', (ws) => {
           playerId = msg.id;
           const state = { x: msg.x, y: msg.y, z: msg.z, yaw: msg.yaw, skin: msg.skin };
 
-          // Welcome: snapshot of everyone already here
+          // Welcome: snapshot of everyone already here + current NPC host
           const welcome = {};
           players.forEach((c, id) => { if (id !== playerId && c.state) welcome[id] = c.state; });
 
           // Register (overwrites stale entry from quick-reconnect)
           players.set(playerId, { ws, state });
 
-          ws.send(JSON.stringify({ type: 'welcome', players: welcome }));
+          ws.send(JSON.stringify({ type: 'welcome', players: welcome, npcHost: npcHostId }));
           broadcast({ type: 'join', id: playerId, ...state }, playerId);
+
+          // Assign NPC host if nobody has it yet
+          if (!npcHostId) _assignNPCHost();
+
           console.log(`+ ${playerId.slice(-8)} joined (${players.size} online)`);
           break;
         }
@@ -70,6 +84,14 @@ wss.on('connection', (ws) => {
         case 'mv': {
           const c = players.get(playerId);
           if (c) c.state = { x: msg.x, y: msg.y, z: msg.z, yaw: msg.yaw, skin: msg.skin };
+          break;
+        }
+
+        case 'npc_update': {
+          // Relay NPC state from host to all other players
+          if (playerId && playerId === npcHostId) {
+            broadcast({ type: 'npc_update', npcs: msg.npcs }, playerId);
+          }
           break;
         }
 
@@ -87,6 +109,8 @@ wss.on('connection', (ws) => {
     if (!cur || cur.ws !== ws) return; // stale close after quick reconnect
     players.delete(playerId);
     broadcast({ type: 'leave', id: playerId });
+    // Hand off NPC host role if the host disconnected
+    if (playerId === npcHostId) _assignNPCHost();
     console.log(`- ${playerId.slice(-8)} left  (${players.size} online)`);
   });
 

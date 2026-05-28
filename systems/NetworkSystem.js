@@ -85,6 +85,8 @@ const _handle = (msg) => {
       ids.forEach(id => _createPlayer(id, msg.players[id]));
       const n = net.remotePlayers.size;
       if (n > 0) showToast(n === 1 ? '1 other player in the room' : `${n} other players in the room`);
+      // Server tells us who is the NPC host
+      if (msg.npcHost !== undefined) becomeNPCHost(msg.npcHost === net.playerId);
       break;
     }
 
@@ -119,6 +121,14 @@ const _handle = (msg) => {
       showToast('A player left');
       break;
     }
+
+    case 'npc_host':
+      becomeNPCHost(msg.id === net.playerId);
+      break;
+
+    case 'npc_update':
+      updateNPCStates(msg.npcs);
+      break;
 
     case 'emote':
       spawnEmote(msg.wx, msg.wy, msg.wz, msg.emoteId);
@@ -268,6 +278,12 @@ const disableMultiplayer = () => {
 const sendEmote = (wx, wy, wz, emoteId) => {
   if (net.connected && net.ws) {
     net.ws.send(JSON.stringify({ type: 'emote', wx, wy, wz, emoteId }));
+  }
+};
+
+const sendNPCUpdate = (states) => {
+  if (net.connected && net.ws) {
+    net.ws.send(JSON.stringify({ type: 'npc_update', npcs: states }));
   }
 };
 
