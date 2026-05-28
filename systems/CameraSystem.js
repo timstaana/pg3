@@ -12,7 +12,7 @@
 // outside of the player, never cuts through.
 
 const SMOOTH         = 0.12;
-const IDLE_TIMEOUT   = 15;           // seconds until camera returns to intro
+const IDLE_TIMEOUT   = 10;           // seconds until camera returns to intro
 const BLEND_TO_GAME  = 0.08;
 const BLEND_TO_INTRO = 0.04;
 

@@ -2,6 +2,11 @@
 
 let alphaCutoutShader = null; // assigned in main.js after shader loads
 
+// ─── One-time intro fade for networked players ────────────────────────────
+let _introFade     = 0;
+let _introFadeDone = false;
+const INTRO_FADE_DURATION = 2.0;
+
 // ─── OBJ model ────────────────────────────────────────────────────────────
 
 const renderModel = ({ pos, rot, scale: scl, geo, tex }) => {
@@ -89,7 +94,7 @@ const renderShadow = (entity, collWorld) => {
 
 let _spriteBatchActive = false; // set by RenderSystem around sprite loops
 
-const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex) => {
+const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex, fadeAlpha = 1.0) => {
   if (!frontTex || !backTex) return;
 
   // Camera→character XZ direction, normalised — no vector allocations
@@ -124,7 +129,7 @@ const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex) => {
     if (!_spriteBatchActive) shader(alphaCutoutShader); // hoisted to batch in RenderSystem
     alphaCutoutShader.setUniform('uTexture',     tex);
     alphaCutoutShader.setUniform('uAlphaCutoff', 0.1);
-    alphaCutoutShader.setUniform('uFadeAlpha',   1.0);
+    alphaCutoutShader.setUniform('uFadeAlpha',   fadeAlpha);
   }
 
   beginShape();
@@ -144,6 +149,12 @@ const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex) => {
 // ─── Main render pass ─────────────────────────────────────────────────────
 
 const RenderSystem = (world, collisionWorld, dt) => {
+  // Advance one-time intro fade for networked players
+  if (!_introFadeDone) {
+    _introFade = Math.min(1, _introFade + dt / INTRO_FADE_DURATION);
+    if (_introFade >= 1) _introFadeDone = true;
+  }
+
   background(255);
 
   push();
@@ -182,7 +193,7 @@ const RenderSystem = (world, collisionWorld, dt) => {
     const skinTexs = (SKIN_TEXTURES && nd.skinId && SKIN_TEXTURES[nd.skinId])
       ? SKIN_TEXTURES[nd.skinId]
       : { front: PLAYER_FRONT_TEX, back: PLAYER_BACK_TEX };
-    renderCharacterSprite(pos, rot, anim, nd.radius, skinTexs.front, skinTexs.back);
+    renderCharacterSprite(pos, rot, anim, nd.radius, skinTexs.front, skinTexs.back, _introFade);
   });
 
   if (alphaCutoutShader) resetShader();
