@@ -70,8 +70,11 @@ const renderShadow = (entity, collWorld) => {
   const hit = _getShadowHit(entity.id, entity.Transform.pos, collWorld);
   if (!hit) return;
 
-  const alpha = 0.3 - hit.dist / 8;
+  let alpha = 0.3 - hit.dist / 8;
   if (alpha <= 0) return;
+
+  if (entity.NetworkedPlayer) alpha *= (entity.NetworkedPlayer.fadeAlpha ?? 1.0);
+  if (alpha <= 0.01) return;
 
   const p = entity.Transform.pos;
   push();
