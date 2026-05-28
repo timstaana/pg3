@@ -231,6 +231,8 @@ const sendState = () => {
 
 // ========== Remote Players ==========
 
+const PLAYER_FADE_SPEED = 2.5; // full fade in/out in ~0.4 s
+
 const createRemotePlayer = (playerId, state) => {
   if (networkState.remotePlayers.has(playerId)) return;
   if (!state || !state.pos) return;
@@ -256,7 +258,9 @@ const createRemotePlayer = (playerId, state) => {
       radius: PLAYER_RADIUS,
       isMoving: false,
       isTurning: false,
-      skinId: state.skin || SKINS[0].id   // use their skin, fall back to default
+      skinId: state.skin || SKINS[0].id,  // use their skin, fall back to default
+      fadeAlpha: 0,
+      isLeaving: false
     }
   });
 
@@ -266,8 +270,7 @@ const createRemotePlayer = (playerId, state) => {
 const removeRemotePlayer = (playerId) => {
   const entity = networkState.remotePlayers.get(playerId);
   if (entity) {
-    removeEntity(world, entity);
-    networkState.remotePlayers.delete(playerId);
+    entity.NetworkedPlayer.isLeaving = true; // fade out; interpolate() removes when done
   }
 };
 
@@ -291,9 +294,19 @@ const updateRemotePlayer = (playerId, state) => {
 };
 
 const interpolate = (dt) => {
-  networkState.remotePlayers.forEach(entity => {
+  const toRemove = [];
+
+  networkState.remotePlayers.forEach((entity, playerId) => {
     const net = entity.NetworkedPlayer;
     const transform = entity.Transform;
+
+    // Animate fade in/out
+    if (net.isLeaving) {
+      net.fadeAlpha = Math.max(0, net.fadeAlpha - dt * PLAYER_FADE_SPEED);
+      if (net.fadeAlpha <= 0) toRemove.push(playerId);
+      return; // skip position interpolation while leaving
+    }
+    net.fadeAlpha = Math.min(1, net.fadeAlpha + dt * PLAYER_FADE_SPEED);
 
     // Check horizontal movement for animation (ignore Y/jumping)
     const dx = net.targetPos.x - transform.pos.x;
@@ -307,14 +320,16 @@ const interpolate = (dt) => {
     else if (yawDiff < -180) yawDiff += 360;
     net.isTurning = Math.abs(yawDiff) > 1;
 
-    // Interpolate
+    // Interpolate position/rotation
     const factor = Math.min(1, net.lerpSpeed * dt);
     transform.pos.lerp(net.targetPos, factor);
     transform.rot.y += yawDiff * factor;
   });
 
-  // Note: Player cleanup is handled by server 'player_left' messages
-  // No client-side timeout - idle players shouldn't be disconnected
+  toRemove.forEach(id => {
+    removeEntity(world, networkState.remotePlayers.get(id));
+    networkState.remotePlayers.delete(id);
+  });
 };
 
 // ========== Main System ==========
