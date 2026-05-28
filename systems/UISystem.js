@@ -30,8 +30,10 @@ const SKINS = [
 ];
 
 const EMOTES = [
-  { id: 'emote_1', label: 'Bunny',   src: 'assets/emote_01.png' },
-  { id: 'emote_2', label: 'Bunny 2', src: 'assets/emote_02.png' },
+  { id: 'emote_1', label: 'Happy',  src: 'assets/emote_01.png' },
+  { id: 'emote_2', label: 'Thumbs Up', src: 'assets/emote_02.png' },
+  { id: 'emote_3', label: 'Cry',    src: 'assets/emote_03.png' },
+  { id: 'emote_4', label: 'Angry',  src: 'assets/emote_04.png' },
 ];
 
 // ── Shared state ───────────────────────────────────────────────────────────────
@@ -128,8 +130,8 @@ const setupUI = (onEmoteFired) => {
       background: #fff;
       border: 1px solid #000;
       border-radius: 14px;
-      color: #000; font-size: 24px;
-      width: 54px; height: 54px;
+      color: #000; font-size: 32px;
+      width: 72px; height: 72px;
       padding: 0;
       display: flex; align-items: center; justify-content: center;
       cursor: pointer;
@@ -160,8 +162,8 @@ const setupUI = (onEmoteFired) => {
       background: #fff;
       border: 1px solid #000;
       border-radius: 50%;
-      color: #000; font-size: 38px;
-      width: 64px; height: 64px;
+      color: #000; font-size: 50px;
+      width: 82px; height: 82px;
       padding: 0;
       display: none; align-items: center; justify-content: center;
       cursor: pointer; touch-action: none;
@@ -185,7 +187,7 @@ const setupUI = (onEmoteFired) => {
 
     .pg-emote-opt {
       position: absolute;
-      width: 52px; height: 52px;
+      width: 72px; height: 72px;
       padding: 0;
       background: #fff;
       border: 1px solid #000;
@@ -210,7 +212,7 @@ const setupUI = (onEmoteFired) => {
   const SKIN_FRAMES = 3;
   const skinBtn     = el('button', { id: 'pg-skin-btn', class: 'pg-btn' });
   const skinBtnImg  = el('div', { style: [
-    'width:36px', 'height:36px',
+    'width:54px', 'height:54px',
     `background-image:url(${SKINS[0].front})`,
     `background-size:${SKIN_FRAMES * 100}% 100%`,
     'background-position:0% 0%',
@@ -221,7 +223,7 @@ const setupUI = (onEmoteFired) => {
   skinBtn.appendChild(skinBtnImg);
   document.body.appendChild(skinBtn);
 
-  const MAX_BTN_SIZE = 42;
+  const MAX_BTN_SIZE = 58;
   const setSkinBtnAspect = (src) => {
     const probe = new Image();
     probe.onload = () => {
@@ -297,7 +299,7 @@ const setupUI = (onEmoteFired) => {
   };
 
   // Build radial options — evenly fanned above the button (centred at 270°)
-  const RADIAL_R   = 74;
+  const RADIAL_R   = 100;
   const _emoteAngles = [];
   const N = EMOTES.length;
 
@@ -315,14 +317,14 @@ const setupUI = (onEmoteFired) => {
       class: 'pg-emote-opt' + (i === 0 ? ' selected' : ''),
       style: `left:${x}px;top:${y}px`
     });
-    btn.appendChild(el('img', { src: emote.src, style: 'width:34px;height:34px;object-fit:contain;pointer-events:none' }));
+    btn.appendChild(el('img', { src: emote.src, style: 'width:52px;height:52px;object-fit:contain;pointer-events:none' }));
     emotePicker.appendChild(btn);
   });
   document.body.appendChild(emotePicker);
 
   // ── Emote button ───────────────────────────────────────────────────────────
   const emoteBtn    = el('button', { id: 'pg-emote-btn', class: 'pg-btn' });
-  const emoteBtnImg = el('img', { src: EMOTES[0].src, style: 'width:38px;height:38px;object-fit:contain;pointer-events:none' });
+  const emoteBtnImg = el('img', { src: EMOTES[0].src, style: 'width:56px;height:56px;object-fit:contain;pointer-events:none' });
   emoteBtn.appendChild(emoteBtnImg);
   document.body.appendChild(emoteBtn);
 
