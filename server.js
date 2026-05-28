@@ -115,16 +115,18 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     if (room && playerId) {
-      rooms.get(room)?.delete(playerId);
+      // Guard against stale close: if the player reconnected quickly, the room
+      // already holds their new ws — don't delete it or broadcast a false leave.
+      const current = rooms.get(room)?.get(playerId);
+      if (!current || current.ws !== ws) return;
+
+      rooms.get(room).delete(playerId);
       broadcast(room, { type: 'player_left', playerId });
 
       const remaining = rooms.get(room)?.size || 0;
       console.log(`${playerId.slice(-4)} left ${room} (${remaining} players)`);
 
-      // Clean up empty rooms
-      if (remaining === 0) {
-        rooms.delete(room);
-      }
+      if (remaining === 0) rooms.delete(room);
     }
   });
 

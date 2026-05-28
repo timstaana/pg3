@@ -157,11 +157,12 @@ const handleMessage = (msg) => {
   switch (msg.type) {
     case 'room_state': {
       msg.players.forEach(p => createRemotePlayer(p.playerId, p.state));
-      const n = msg.players.length;
-      showToast(n === 0 ? 'No other players in the room'
-              : n === 1 ? '1 other player in the room'
-                        : `${n} other players in the room`);
-      console.log(`Joined room with ${n} player(s)`);
+      console.log(`Joined room with ${msg.players.length} player(s)`);
+      // Delay toast so player_joined events that arrive right after are counted
+      setTimeout(() => {
+        const n = networkState.remotePlayers.size;
+        if (n > 0) showToast(n === 1 ? '1 other player in the room' : `${n} other players in the room`);
+      }, 500);
       break;
     }
 
