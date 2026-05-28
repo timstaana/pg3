@@ -259,8 +259,7 @@ const createRemotePlayer = (playerId, state) => {
       isMoving: false,
       isTurning: false,
       skinId: state.skin || SKINS[0].id,  // use their skin, fall back to default
-      fadeAlpha: 0,
-      isLeaving: false
+      fadeAlpha: 0
     }
   });
 
@@ -270,7 +269,8 @@ const createRemotePlayer = (playerId, state) => {
 const removeRemotePlayer = (playerId) => {
   const entity = networkState.remotePlayers.get(playerId);
   if (entity) {
-    entity.NetworkedPlayer.isLeaving = true; // fade out; interpolate() removes when done
+    removeEntity(world, entity);
+    networkState.remotePlayers.delete(playerId);
   }
 };
 
@@ -294,25 +294,17 @@ const updateRemotePlayer = (playerId, state) => {
 };
 
 const interpolate = (dt) => {
-  const toRemove = [];
-
-  networkState.remotePlayers.forEach((entity, playerId) => {
+  networkState.remotePlayers.forEach(entity => {
     const net = entity.NetworkedPlayer;
     const transform = entity.Transform;
 
-    // Animate fade in/out
-    if (net.isLeaving) {
-      net.fadeAlpha = Math.max(0, net.fadeAlpha - dt * PLAYER_FADE_SPEED);
-      if (net.fadeAlpha <= 0) toRemove.push(playerId);
-      return; // skip position interpolation while leaving
-    }
+    // Fade in on connect
     net.fadeAlpha = Math.min(1, net.fadeAlpha + dt * PLAYER_FADE_SPEED);
 
     // Check horizontal movement for animation (ignore Y/jumping)
     const dx = net.targetPos.x - transform.pos.x;
     const dz = net.targetPos.z - transform.pos.z;
-    const hDist = Math.sqrt(dx * dx + dz * dz);
-    net.isMoving = hDist > 0.05;
+    net.isMoving = Math.sqrt(dx * dx + dz * dz) > 0.05;
 
     // Check rotation for animation
     let yawDiff = net.targetYaw - transform.rot.y;
@@ -320,15 +312,9 @@ const interpolate = (dt) => {
     else if (yawDiff < -180) yawDiff += 360;
     net.isTurning = Math.abs(yawDiff) > 1;
 
-    // Interpolate position/rotation
     const factor = Math.min(1, net.lerpSpeed * dt);
     transform.pos.lerp(net.targetPos, factor);
     transform.rot.y += yawDiff * factor;
-  });
-
-  toRemove.forEach(id => {
-    removeEntity(world, networkState.remotePlayers.get(id));
-    networkState.remotePlayers.delete(id);
   });
 };
 
