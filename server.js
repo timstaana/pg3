@@ -29,7 +29,7 @@ const wss = new WebSocketServer({ server, perMessageDeflate: false });
 const players = new Map(); // id → { ws, state }
 
 // ── Server-side NPC simulation ────────────────────────────────────────────
-const SRV_NPC_Y          = 0.1;
+const SRV_NPC_Y          = 0.25; // radius above ground so sprite feet sit at y≈0
 const SRV_NPC_BOUNDS     = 13;
 const SRV_NPC_RADIUS     = 0.25;
 const SRV_NPC_WALK_SPEED = 3.8;
