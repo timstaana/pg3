@@ -14,6 +14,8 @@ const updateNPCStates = (states) => {
   for (const s of states) {
     const e = npcs.find(n => n.NPC.npcIndex === s.id);
     if (!e) continue;
+    const dx = s.x - e.NPC.targetPos.x, dz = s.z - e.NPC.targetPos.z;
+    if (dx*dx + dz*dz > 16) e.Transform.pos.set(s.x, s.y, s.z); // snap on teleport/respawn
     e.NPC.targetPos.set(s.x, s.y, s.z);
     e.NPC.targetYaw       = s.yaw;
     e.Animation.currentFrame = s.frame;

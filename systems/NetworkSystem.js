@@ -166,6 +166,8 @@ const _updatePlayer = (id, s) => {
   const e = net.remotePlayers.get(id);
   if (!e) return;
   const n = e.NetworkedPlayer;
+  const dx = +s.x - n.targetPos.x, dz = +s.z - n.targetPos.z;
+  if (dx*dx + dz*dz > 16) e.Transform.pos.set(+s.x, +s.y, +s.z); // snap on teleport/respawn
   n.targetPos.set(+s.x, +s.y, +s.z);
   n.targetYaw    = +s.yaw;
   if (s.skin) n.skinId = s.skin;
