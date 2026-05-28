@@ -2,11 +2,6 @@
 
 let alphaCutoutShader = null; // assigned in main.js after shader loads
 
-// ─── Spawn-zone fade — others hidden while local player is near spawn ─────
-let _spawnFade     = 0;     // 0 = others invisible, 1 = fully visible
-let _hasLeftSpawn  = false; // latches true once player moves away; never resets
-const _SPAWN_FADE_SPEED  = 2.5;
-const _SPAWN_FADE_RADIUS = 2;
 
 
 // ─── OBJ model ────────────────────────────────────────────────────────────
@@ -151,18 +146,6 @@ const renderCharacterSprite = (pos, rot, anim, radius, frontTex, backTex, fadeAl
 // ─── Main render pass ─────────────────────────────────────────────────────
 
 const RenderSystem = (world, collisionWorld, dt) => {
-  // Update spawn-zone fade
-  if (!_hasLeftSpawn) {
-    const localPlayers = queryEntities(world, 'Player', 'Transform');
-    if (localPlayers.length > 0) {
-      const p = localPlayers[0].Transform.pos;
-      const dx = p.x - SPAWN_POS[0], dz = p.z - SPAWN_POS[2];
-      if (Math.sqrt(dx * dx + dz * dz) > _SPAWN_FADE_RADIUS) _hasLeftSpawn = true;
-    }
-  }
-  const spawnTarget = _hasLeftSpawn ? 1 : 0;
-  _spawnFade += (spawnTarget - _spawnFade) * Math.min(1, _SPAWN_FADE_SPEED * dt);
-
   background(255);
 
   push();
@@ -185,9 +168,7 @@ const RenderSystem = (world, collisionWorld, dt) => {
   gl.disable(gl.CULL_FACE);
 
   queryEntities(world, 'Player',         'Transform').forEach(e => renderShadow(e, collisionWorld));
-  if (_spawnFade > 0.01) {
-    queryEntities(world, 'NetworkedPlayer','Transform').forEach(e => renderShadow(e, collisionWorld));
-  }
+  queryEntities(world, 'NetworkedPlayer','Transform').forEach(e => renderShadow(e, collisionWorld));
 
   // Activate shader once for all sprites — avoids N GPU state flushes per frame
   _spriteBatchActive = !!alphaCutoutShader;
@@ -203,7 +184,7 @@ const RenderSystem = (world, collisionWorld, dt) => {
     const skinTexs = (SKIN_TEXTURES && nd.skinId && SKIN_TEXTURES[nd.skinId])
       ? SKIN_TEXTURES[nd.skinId]
       : { front: PLAYER_FRONT_TEX, back: PLAYER_BACK_TEX };
-    renderCharacterSprite(pos, rot, anim, nd.radius, skinTexs.front, skinTexs.back, (nd.fadeAlpha ?? 1.0) * _spawnFade);
+    renderCharacterSprite(pos, rot, anim, nd.radius, skinTexs.front, skinTexs.back, nd.fadeAlpha ?? 1.0);
   });
 
   if (alphaCutoutShader) resetShader();
